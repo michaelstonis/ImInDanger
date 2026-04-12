@@ -1,0 +1,19 @@
+# Ralph Wiggum Loop — Runtime artifacts
+.loop-logs/
+.loop-stop
+
+# Loop state files (uncomment if you don't want to track them)
+# TASKS.md
+# PROGRESS.md
+# LOOP_CONFIG.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+*.swp
+*.swo
+*~
+.idea/
+.vscode/settings.json

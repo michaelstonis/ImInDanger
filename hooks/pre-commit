@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Ralph Wiggum Loop — Pre-commit Hook
+# Validates changes against loop guardrails before allowing commits
+#
+# Install: bash hooks/setup-hooks.sh
+
+set -euo pipefail
+
+# Only run guardrail checks if we're in a loop context
+# (TASKS.md exists, indicating a loop is active)
+if [[ ! -f "TASKS.md" ]]; then
+  exit 0
+fi
+
+echo "🛡️  Ralph Wiggum Loop — Pre-commit Guardrail Check"
+echo ""
+
+GUARDRAIL_SCRIPT=".github/skills/loop-guardrails/check-guardrails.sh"
+
+if [[ -f "$GUARDRAIL_SCRIPT" ]]; then
+  if ! bash "$GUARDRAIL_SCRIPT"; then
+    echo ""
+    echo "❌ Commit blocked by loop guardrails."
+    echo "   Review the violations above and fix them before committing."
+    echo "   To bypass (emergency only): git commit --no-verify"
+    exit 1
+  fi
+else
+  echo "⚠️  Guardrail script not found at $GUARDRAIL_SCRIPT"
+  echo "   Skipping guardrail checks."
+fi
+
+echo ""
+echo "✅ Pre-commit guardrail check passed"
