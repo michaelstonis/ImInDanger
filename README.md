@@ -299,18 +299,20 @@ bash hooks/setup-hooks.sh
 
 ## CLI Reference (`rwl`)
 
-The `rwl` CLI is a pure-bash interactive tool for onboarding, managing, and monitoring the Ralph Wiggum Loop. No external dependencies required.
+The `rwl` CLI is a .NET single-file binary built with [Spectre.Console](https://spectreconsole.net/) for rich terminal UI. It provides interactive wizards, dashboards, and management commands for the Ralph Wiggum Loop.
+
+**Requirements:** .NET SDK 10.0+ (for building from source) — the published binary is self-contained and needs no runtime.
 
 ### Installation
 
 ```bash
-# Option 1: Symlink (recommended for development)
-make link
-
-# Option 2: Copy to PATH
+# Option 1: Build & install single-file binary (recommended)
 make install
 
-# Option 3: Direct
+# Option 2: Build & symlink for development
+make link
+
+# Option 3: Direct install script
 bash install.sh --prefix /usr/local
 ```
 
@@ -332,11 +334,11 @@ export RWL_HOME="/path/to/ImInDanger"
 | `rwl run` | Start the loop (pass-through to `run-loop.sh`) |
 | `rwl run-one` | Execute a single iteration |
 | `rwl stop` | Create a stop flag to halt the loop after the current iteration |
-| `rwl compact` | Compact PROGRESS.md to free context space |
+| `rwl compact [N]` | Compact PROGRESS.md, keeping last N iterations (default: 5) |
 | `rwl reset` | Reset loop state for a fresh run |
 | `rwl health` | Run convergence and guardrail checks |
-| `rwl version` | Print version |
-| `rwl help` | Show usage information |
+| `rwl --help` | Show usage information |
+| `rwl --version` | Print version |
 
 ### `rwl init` — Setup Wizard
 

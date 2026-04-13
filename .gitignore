@@ -7,6 +7,10 @@
 # PROGRESS.md
 # LOOP_CONFIG.md
 
+# .NET build artifacts
+src/Rwl/bin/
+src/Rwl/obj/
+
 # OS
 .DS_Store
 Thumbs.db
