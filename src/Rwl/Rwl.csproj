@@ -8,11 +8,23 @@
     <RootNamespace>Rwl</RootNamespace>
     <AssemblyName>rwl</AssemblyName>
     <Version>2.0.0</Version>
-    <Description>Ralph Wiggum Loop — iterative fresh-context agent loop CLI</Description>
 
-    <!-- Single-file deployment -->
+    <!-- .NET Tool packaging (dotnet tool install -g rwl) -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>rwl</ToolCommandName>
+
+    <!-- NuGet package metadata -->
+    <PackageId>rwl</PackageId>
+    <Authors>mstonis</Authors>
+    <Description>Ralph Wiggum Loop — iterative fresh-context agent loop CLI for GitHub Copilot</Description>
+    <PackageTags>copilot;agent;loop;cli;ai;ralph-wiggum-loop;vscode</PackageTags>
+    <PackageProjectUrl>https://github.com/mstonis/ImInDanger</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/mstonis/ImInDanger</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- Single-file standalone publish (only affects dotnet publish, not dotnet pack) -->
     <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>true</SelfContained>
     <PublishTrimmed>true</PublishTrimmed>
     <TrimMode>partial</TrimMode>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
@@ -27,6 +39,11 @@
   <!-- Embed templates as resources -->
   <ItemGroup>
     <EmbeddedResource Include="Resources\Templates\**\*" />
+  </ItemGroup>
+
+  <!-- NuGet package content -->
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

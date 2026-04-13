@@ -10,6 +10,7 @@
 # .NET build artifacts
 src/Rwl/bin/
 src/Rwl/obj/
+*.nupkg
 
 # OS
 .DS_Store

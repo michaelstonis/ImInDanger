@@ -1,4 +1,4 @@
-.PHONY: build publish install uninstall link help test clean
+.PHONY: build publish pack install install-tool uninstall link help test clean
 
 PREFIX ?= /usr/local
 RID ?= $(shell dotnet --info 2>/dev/null | grep 'RID:' | awk '{print $$2}' || echo "osx-arm64")
@@ -6,22 +6,34 @@ RID ?= $(shell dotnet --info 2>/dev/null | grep 'RID:' | awk '{print $$2}' || ec
 help: ## Show this help
 	@echo "Ralph Wiggum Loop — Makefile"
 	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 
 build: ## Build the .NET CLI (debug)
 	@cd src/Rwl && dotnet build -q
 
-publish: ## Publish single-file binary for current platform
+publish: ## Publish self-contained single-file binary for current platform
 	@echo "Publishing for $(RID)..."
-	@cd src/Rwl && dotnet publish -c Release -r $(RID) -q
+	@cd src/Rwl && dotnet publish -c Release -r $(RID) --self-contained -q
 	@echo "✅ Binary: src/Rwl/bin/Release/net10.0/$(RID)/publish/rwl"
 
-install: publish ## Install rwl binary to PREFIX/bin
+pack: ## Create NuGet tool package (.nupkg)
+	@cd src/Rwl && dotnet pack -c Release -q
+	@echo "✅ Package: $$(ls src/Rwl/bin/Release/*.nupkg 2>/dev/null || echo 'see src/Rwl/bin/Release/')"
+	@echo ""
+	@echo "Install locally:  dotnet tool install -g --add-source src/Rwl/bin/Release rwl"
+	@echo "Push to NuGet:    dotnet nuget push src/Rwl/bin/Release/*.nupkg -s https://api.nuget.org/v3/index.json -k YOUR_API_KEY"
+
+install: publish ## Install self-contained binary to PREFIX/bin
 	@echo "Installing to $(PREFIX)/bin/rwl..."
 	@cp "src/Rwl/bin/Release/net10.0/$(RID)/publish/rwl" "$(PREFIX)/bin/rwl" 2>/dev/null || \
 		sudo cp "src/Rwl/bin/Release/net10.0/$(RID)/publish/rwl" "$(PREFIX)/bin/rwl"
 	@echo "✅ Installed. Run: rwl --help"
+
+install-tool: pack ## Install as global dotnet tool
+	@dotnet tool install -g --add-source src/Rwl/bin/Release rwl || \
+		dotnet tool update -g --add-source src/Rwl/bin/Release rwl
+	@echo "✅ Installed as dotnet tool. Run: rwl --help"
 
 link: build ## Symlink debug build to PREFIX/bin (for development)
 	@echo "Linking rwl to $(PREFIX)/bin/rwl..."
@@ -32,9 +44,10 @@ link: build ## Symlink debug build to PREFIX/bin (for development)
 	@echo "Set RWL_HOME for component resolution:"
 	@echo "  export RWL_HOME=$(CURDIR)"
 
-uninstall: ## Remove rwl from PREFIX/bin
+uninstall: ## Remove rwl (binary + dotnet tool)
 	@echo "Removing $(PREFIX)/bin/rwl..."
 	@rm -f "$(PREFIX)/bin/rwl" 2>/dev/null || sudo rm -f "$(PREFIX)/bin/rwl"
+	@dotnet tool uninstall -g rwl 2>/dev/null || true
 	@echo "✅ Removed."
 
 test: build ## Run basic CLI smoke tests
@@ -45,4 +58,5 @@ test: build ## Run basic CLI smoke tests
 
 clean: ## Clean build artifacts
 	@cd src/Rwl && dotnet clean -q
+	@rm -f src/Rwl/bin/Release/*.nupkg
 	@echo "✅ Cleaned."

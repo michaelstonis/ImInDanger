@@ -301,25 +301,55 @@ bash hooks/setup-hooks.sh
 
 The `rwl` CLI is a .NET single-file binary built with [Spectre.Console](https://spectreconsole.net/) for rich terminal UI. It provides interactive wizards, dashboards, and management commands for the Ralph Wiggum Loop.
 
-**Requirements:** .NET SDK 10.0+ (for building from source) — the published binary is self-contained and needs no runtime.
+**Requirements:** .NET 10.0 runtime (for dotnet tool install) or .NET SDK 10.0+ (for building from source).
 
 ### Installation
 
 ```bash
-# Option 1: Build & install single-file binary (recommended)
+# Option 1: Install as a global .NET tool (recommended)
+dotnet tool install -g rwl
+
+# Option 2: Build & install self-contained binary (no runtime needed)
 make install
 
-# Option 2: Build & symlink for development
+# Option 3: Build & symlink for development
 make link
 
-# Option 3: Direct install script
+# Option 4: Direct install script
 bash install.sh --prefix /usr/local
 ```
 
-Set `RWL_HOME` to point at this repository so `rwl` can find source templates:
+To update an existing installation:
 
 ```bash
-export RWL_HOME="/path/to/ImInDanger"
+dotnet tool update -g rwl
+```
+
+To uninstall:
+
+```bash
+dotnet tool uninstall -g rwl
+```
+
+> **Note:** When installed as a dotnet tool, `rwl` uses embedded resources for templates — no `RWL_HOME` needed.
+> If building from source, set `RWL_HOME` to the repo root so `rwl` can find source templates:
+>
+> ```bash
+> export RWL_HOME="/path/to/ImInDanger"
+> ```
+
+### Building the NuGet Package
+
+```bash
+# Create the .nupkg
+make pack
+
+# Install locally from the built package
+make install-tool
+
+# Push to NuGet.org
+dotnet nuget push src/Rwl/bin/Release/rwl.2.0.0.nupkg \
+  -s https://api.nuget.org/v3/index.json -k YOUR_API_KEY
 ```
 
 ### Commands
