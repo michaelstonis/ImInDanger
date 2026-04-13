@@ -22,6 +22,7 @@
 - [Why This Works](#why-this-works)
 - [Architecture](#architecture)
 - [Quick Start](#quick-start)
+- [CLI Reference (`rwl`)](#cli-reference-rwl)
 - [Components](#components)
   - [Agents](#agents)
   - [Skills](#skills)
@@ -165,7 +166,37 @@ ImInDanger/
 
 ## Quick Start
 
-### 1. Add to Your Project
+### Option A: Using the `rwl` CLI (Recommended)
+
+```bash
+# Clone this repo
+git clone https://github.com/mstonis/ImInDanger.git
+
+# Install the CLI
+cd ImInDanger && make link
+# — or —
+bash install.sh
+
+# Navigate to your project and initialize
+cd /path/to/your/project
+rwl init
+```
+
+The `rwl init` wizard will:
+- Detect your project type (Node, Go, Python, .NET, Rust, etc.)
+- Copy agents, skills, instructions, and templates into your project
+- Auto-configure validation commands and allowed paths
+- Optionally install git hooks for safety guardrails
+
+Then create your task plan:
+
+```bash
+rwl plan          # Interactive task planning wizard
+rwl doctor        # Verify everything is set up correctly
+rwl status        # View the dashboard
+```
+
+### Option B: Manual Setup
 
 Copy the components into your repository:
 
@@ -262,6 +293,150 @@ Open the Copilot Chat panel and type:
 
 ```bash
 bash hooks/setup-hooks.sh
+```
+
+---
+
+## CLI Reference (`rwl`)
+
+The `rwl` CLI is a pure-bash interactive tool for onboarding, managing, and monitoring the Ralph Wiggum Loop. No external dependencies required.
+
+### Installation
+
+```bash
+# Option 1: Symlink (recommended for development)
+make link
+
+# Option 2: Copy to PATH
+make install
+
+# Option 3: Direct
+bash install.sh --prefix /usr/local
+```
+
+Set `RWL_HOME` to point at this repository so `rwl` can find source templates:
+
+```bash
+export RWL_HOME="/path/to/ImInDanger"
+```
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `rwl init` | Interactive setup wizard — adds loop components to your project |
+| `rwl doctor` | Verifies all components are installed and configured correctly |
+| `rwl status` | Dashboard showing task progress, iteration history, and config |
+| `rwl plan` | Guided task creation — builds a complete TASKS.md with objectives |
+| `rwl add-task` | Add a single task to an existing TASKS.md |
+| `rwl run` | Start the loop (pass-through to `run-loop.sh`) |
+| `rwl run-one` | Execute a single iteration |
+| `rwl stop` | Create a stop flag to halt the loop after the current iteration |
+| `rwl compact` | Compact PROGRESS.md to free context space |
+| `rwl reset` | Reset loop state for a fresh run |
+| `rwl health` | Run convergence and guardrail checks |
+| `rwl version` | Print version |
+| `rwl help` | Show usage information |
+
+### `rwl init` — Setup Wizard
+
+The init wizard detects your project type and configures everything automatically:
+
+```
+$ cd my-node-project
+$ rwl init
+
+   ╔═══════════════════════════════════════════════╗
+   ║         🚌  Ralph Wiggum Loop  🚌            ║
+   ║           "I'm in danger!"                    ║
+   ╚═══════════════════════════════════════════════╝
+
+  Detected: node project
+  Source:   /path/to/ImInDanger
+
+  Install Mode:
+    1) Full install (recommended)
+    2) Custom — choose components
+    3) Minimal — agents + templates only
+
+  ▸ Choice [1/2/3]: 1
+  ▸ Also install git hooks? [y/N]: y
+
+  Installing components...
+    ✅ .github/agents/ralph-wiggum-loop.agent.md
+    ✅ .github/agents/loop-planner.agent.md
+    ✅ .github/agents/loop-reviewer.agent.md
+    ✅ .github/skills/loop-runner/
+    ...
+    ✅ LOOP_CONFIG.md (auto-configured)
+
+  🎉 Done! 15 files installed.
+```
+
+### `rwl plan` — Task Planning
+
+Creates a complete TASKS.md interactively:
+
+```bash
+$ rwl plan
+# Prompts for: objective, success criteria, validation command
+# Then loops: add tasks with titles, descriptions, files, dependencies
+# Outputs a fully-formed TASKS.md ready for the loop
+```
+
+### `rwl status` — Dashboard
+
+```
+🚌 Ralph Wiggum Loop — Status Dashboard
+
+Tasks
+─────
+  [████████████░░░░░░░░░░░░░░░░░░] 40%  (4/10)
+
+  Pending       [ ]  4
+  In Progress   [~]  1
+  Done          [x]  4
+  Failed        [!]  1
+
+Progress
+────────
+  Iterations: 6  (4✓ 2✗)
+  File size:  142 lines
+
+Config
+──────
+  Max iterations: 25  Timeout: 10m
+```
+
+### `rwl doctor` — Health Check
+
+Verifies all components are properly installed:
+
+```
+$ rwl doctor
+
+  Git
+  ───
+    ✅ Git repository
+
+  Agents
+  ──────
+    ✅ ralph-wiggum-loop
+    ✅ loop-planner
+    ✅ loop-reviewer
+
+  Skills
+  ──────
+    ✅ loop-runner (executable ✓)
+    ...
+
+  State Files
+  ───────────
+    ✅ TASKS.md
+    ✅ PROGRESS.md
+    ✅ LOOP_CONFIG.md
+
+  0 issue(s), 0 warning(s)
 ```
 
 ---
@@ -654,7 +829,16 @@ The name comes from the Simpsons character Ralph Wiggum. In a famous scene, Ralp
 
 ## Adding to an Existing Project
 
-### Minimal Setup
+The fastest way is `rwl init`:
+
+```bash
+cd /path/to/your/project
+rwl init        # interactive wizard
+rwl plan        # create tasks
+rwl doctor      # verify setup
+```
+
+### Manual Setup — Minimal
 
 The minimum you need is:
 
@@ -664,7 +848,7 @@ The minimum you need is:
 
 Everything else (skills, hooks, templates, guardrails) enhances the pattern but isn't strictly required.
 
-### Recommended Setup
+### Manual Setup — Recommended
 
 For production use, also add:
 
@@ -674,9 +858,9 @@ For production use, also add:
 - `hooks/pre-commit` — blocks dangerous commits
 - `LOOP_CONFIG.md` — configuration
 
-### Full Setup
+### Manual Setup — Full
 
-Copy the entire `.github/agents/`, `.github/skills/`, `.github/instructions/` directories plus `AGENTS.md` and the hook scripts.
+Copy the entire `.github/agents/`, `.github/skills/`, `.github/instructions/` directories plus `AGENTS.md` and the hook scripts. Or just use `rwl init` with the "Full install" option.
 
 ---
 

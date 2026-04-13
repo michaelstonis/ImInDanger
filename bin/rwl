@@ -1,0 +1,1272 @@
+#!/usr/bin/env bash
+# ──────────────────────────────────────────────────────────────────────
+# rwl — Ralph Wiggum Loop CLI
+# Interactive onboarding, status, and management tool
+#
+# Usage: rwl <command> [options]
+# Run 'rwl help' for full command list
+# ──────────────────────────────────────────────────────────────────────
+
+set -euo pipefail
+
+VERSION="1.0.0"
+
+# ── Resolve RWL_HOME (where the loop components live) ──
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -n "${RWL_HOME:-}" ]]; then
+  : # already set via env
+elif [[ -f "$SCRIPT_DIR/../.github/agents/ralph-wiggum-loop.agent.md" ]]; then
+  RWL_HOME="$(cd "$SCRIPT_DIR/.." && pwd)"
+else
+  RWL_HOME="$SCRIPT_DIR"
+fi
+
+# ── Colors (disabled if not a terminal) ──
+if [[ -t 1 ]]; then
+  BOLD='\033[1m'
+  DIM='\033[2m'
+  RED='\033[0;31m'
+  GREEN='\033[0;32m'
+  YELLOW='\033[0;33m'
+  BLUE='\033[0;34m'
+  MAGENTA='\033[0;35m'
+  CYAN='\033[0;36m'
+  WHITE='\033[0;37m'
+  RESET='\033[0m'
+else
+  BOLD='' DIM='' RED='' GREEN='' YELLOW='' BLUE='' MAGENTA='' CYAN='' WHITE='' RESET=''
+fi
+
+# ── Utility Functions ──
+
+header() {
+  echo ""
+  echo -e "${CYAN}${BOLD}$1${RESET}"
+  echo -e "${DIM}$(printf '%.0s─' $(seq 1 ${#1}))${RESET}"
+}
+
+info()    { echo -e "  ${BLUE}ℹ${RESET}  $1"; }
+success() { echo -e "  ${GREEN}✅${RESET} $1"; }
+warn()    { echo -e "  ${YELLOW}⚠️${RESET}  $1"; }
+err()     { echo -e "  ${RED}❌${RESET} $1"; }
+bullet()  { echo -e "  ${DIM}•${RESET}  $1"; }
+
+prompt_input() {
+  local prompt_text="$1"
+  local default="${2:-}"
+  local result
+
+  if [[ -n "$default" ]]; then
+    echo -en "  ${MAGENTA}▸${RESET} ${prompt_text} ${DIM}[${default}]${RESET}: " >&2
+  else
+    echo -en "  ${MAGENTA}▸${RESET} ${prompt_text}: " >&2
+  fi
+  read -r result
+  echo "${result:-$default}"
+}
+
+prompt_yn() {
+  local prompt_text="$1"
+  local default="${2:-y}"
+  local result
+
+  if [[ "$default" == "y" ]]; then
+    echo -en "  ${MAGENTA}▸${RESET} ${prompt_text} ${DIM}[Y/n]${RESET}: " >&2
+  else
+    echo -en "  ${MAGENTA}▸${RESET} ${prompt_text} ${DIM}[y/N]${RESET}: " >&2
+  fi
+  read -r result
+  result="${result:-$default}"
+  [[ "$result" =~ ^[Yy] ]]
+}
+
+prompt_choice() {
+  local prompt_text="$1"
+  shift
+  local options=("$@")
+
+  echo -e "  ${MAGENTA}▸${RESET} ${prompt_text}" >&2
+  local i=1
+  for opt in "${options[@]}"; do
+    echo -e "    ${CYAN}${i})${RESET} ${opt}" >&2
+    i=$((i + 1))
+  done
+  echo -en "    ${DIM}Enter choice [1-${#options[@]}]:${RESET} " >&2
+  local choice
+  read -r choice
+  echo "${choice:-1}"
+}
+
+separator() {
+  echo -e "  ${DIM}────────────────────────────────────────${RESET}"
+}
+
+progress_bar() {
+  local done_count="$1"
+  local total="$2"
+  local width="${3:-30}"
+
+  if [[ $total -eq 0 ]]; then
+    echo -n "[$(printf '░%.0s' $(seq 1 "$width"))] 0%"
+    return
+  fi
+
+  local filled=$(( (done_count * width) / total ))
+  local empty=$(( width - filled ))
+  local pct=$(( (done_count * 100) / total ))
+
+  echo -n "["
+  echo -ne "${GREEN}"
+  [[ $filled -gt 0 ]] && printf '█%.0s' $(seq 1 "$filled")
+  echo -ne "${DIM}"
+  [[ $empty -gt 0 ]] && printf '░%.0s' $(seq 1 "$empty")
+  echo -ne "${RESET}] ${BOLD}${pct}%${RESET}"
+}
+
+# ── Banner ──
+
+show_banner() {
+  echo -e "${YELLOW}"
+  cat << 'BANNER'
+   ╔═══════════════════════════════════════════════╗
+   ║         🚌  Ralph Wiggum Loop  🚌            ║
+   ║           "I'm in danger!"                    ║
+   ╚═══════════════════════════════════════════════╝
+BANNER
+  echo -e "${RESET}"
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# COMMAND: help
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_help() {
+  show_banner
+  echo -e "${BOLD}Usage:${RESET} rwl <command> [options]"
+  echo ""
+  echo -e "${BOLD}Onboarding:${RESET}"
+  echo -e "  ${CYAN}init${RESET}        Interactive setup wizard — add the loop to your project"
+  echo -e "  ${CYAN}doctor${RESET}      Check if your project is set up correctly"
+  echo ""
+  echo -e "${BOLD}Task Management:${RESET}"
+  echo -e "  ${CYAN}plan${RESET}        Interactive task creation helper"
+  echo -e "  ${CYAN}status${RESET}      Dashboard showing current loop state"
+  echo -e "  ${CYAN}add-task${RESET}    Add a single task to TASKS.md"
+  echo ""
+  echo -e "${BOLD}Execution:${RESET}"
+  echo -e "  ${CYAN}run${RESET}         Start the loop (pass-through to run-loop.sh)"
+  echo -e "  ${CYAN}run-one${RESET}     Execute a single iteration"
+  echo -e "  ${CYAN}stop${RESET}        Create stop flag to halt the loop"
+  echo ""
+  echo -e "${BOLD}Maintenance:${RESET}"
+  echo -e "  ${CYAN}compact${RESET}     Compact PROGRESS.md to free context space"
+  echo -e "  ${CYAN}reset${RESET}       Reset loop state for a fresh run"
+  echo -e "  ${CYAN}health${RESET}      Run convergence and guardrail checks"
+  echo ""
+  echo -e "${BOLD}Other:${RESET}"
+  echo -e "  ${CYAN}help${RESET}        Show this help message"
+  echo -e "  ${CYAN}version${RESET}     Show version"
+  echo ""
+  echo -e "${DIM}Examples:${RESET}"
+  echo "  rwl init                # Set up the loop in your project"
+  echo "  rwl plan                # Create tasks interactively"
+  echo "  rwl run                 # Start the loop"
+  echo "  rwl status              # Check progress"
+  echo ""
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# COMMAND: version
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_version() {
+  echo "rwl version $VERSION"
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# COMMAND: init — Interactive Setup Wizard
+# ══════════════════════════════════════════════════════════════════════
+
+detect_project_type() {
+  local test_cmd="" build_cmd="" lint_cmd="" project_type="unknown"
+
+  if [[ -f "package.json" ]]; then
+    project_type="node"
+    if command -v node &>/dev/null; then
+      test_cmd=$(node -e "try{const p=require('./package.json');console.log(p.scripts&&p.scripts.test?'npm test':'')}catch{}" 2>/dev/null || true)
+      build_cmd=$(node -e "try{const p=require('./package.json');console.log(p.scripts&&p.scripts.build?'npm run build':'')}catch{}" 2>/dev/null || true)
+      lint_cmd=$(node -e "try{const p=require('./package.json');console.log(p.scripts&&p.scripts.lint?'npm run lint':'')}catch{}" 2>/dev/null || true)
+    fi
+    [[ -f "tsconfig.json" ]] && [[ -z "$build_cmd" ]] && build_cmd="npx tsc --noEmit"
+  elif [[ -f "requirements.txt" ]] || [[ -f "pyproject.toml" ]] || [[ -f "setup.py" ]]; then
+    project_type="python"
+    test_cmd="python -m pytest"
+    [[ -f "pyproject.toml" ]] && lint_cmd="ruff check ."
+  elif [[ -f "go.mod" ]]; then
+    project_type="go"
+    test_cmd="go test ./..."
+    build_cmd="go build ./..."
+    lint_cmd="golangci-lint run"
+  elif [[ -f "Cargo.toml" ]]; then
+    project_type="rust"
+    test_cmd="cargo test"
+    build_cmd="cargo build"
+    lint_cmd="cargo clippy"
+  elif ls ./*.csproj ./*.sln &>/dev/null 2>&1; then
+    project_type="dotnet"
+    test_cmd="dotnet test"
+    build_cmd="dotnet build"
+  elif [[ -f "Makefile" ]]; then
+    project_type="make"
+    build_cmd="make"
+    grep -q '^test:' Makefile 2>/dev/null && test_cmd="make test"
+  fi
+
+  echo "${project_type}|${test_cmd}|${build_cmd}|${lint_cmd}"
+}
+
+detect_source_dirs() {
+  local dirs=()
+  for d in src lib app tests test spec pkg cmd internal; do
+    [[ -d "$d" ]] && dirs+=("$d/**")
+  done
+  echo "${dirs[*]:-}"
+}
+
+cmd_init() {
+  show_banner
+  echo -e "${BOLD}Project Setup Wizard${RESET}"
+  echo -e "${DIM}This will add Ralph Wiggum Loop components to your project.${RESET}"
+  echo ""
+
+  local project_dir
+  project_dir="$(pwd)"
+
+  # ── Detect project ──
+  header "Detecting project"
+  info "Working directory: ${BOLD}$project_dir${RESET}"
+
+  if git rev-parse --is-inside-work-tree &>/dev/null 2>&1; then
+    success "Git repository detected"
+  else
+    warn "Not a git repository"
+    if prompt_yn "Initialize git?"; then
+      git init -q
+      success "Git initialized"
+    fi
+  fi
+
+  # Parse detection results
+  local detection
+  detection=$(detect_project_type)
+  IFS='|' read -r project_type test_cmd build_cmd lint_cmd <<< "$detection"
+
+  if [[ "$project_type" != "unknown" ]]; then
+    info "Detected: ${BOLD}${project_type}${RESET} project"
+    [[ -n "$test_cmd" ]]  && bullet "Test:  $test_cmd"
+    [[ -n "$build_cmd" ]] && bullet "Build: $build_cmd"
+    [[ -n "$lint_cmd" ]]  && bullet "Lint:  $lint_cmd"
+  else
+    info "Project type: unknown (you can configure manually)"
+  fi
+
+  echo ""
+
+  # ── Choose components ──
+  header "Components to install"
+
+  local install_agents=true
+  local install_skills=true
+  local install_instructions=true
+  local install_hooks=false
+  local install_templates=true
+
+  echo -e "  The following components are available:"
+  echo ""
+  echo -e "  ${GREEN}●${RESET} ${BOLD}Agents${RESET}        — AI agent profiles (orchestrator, planner, reviewer)"
+  echo -e "  ${GREEN}●${RESET} ${BOLD}Skills${RESET}        — Loop runner, state manager, convergence detector, guardrails"
+  echo -e "  ${GREEN}●${RESET} ${BOLD}Instructions${RESET}  — Copilot instructions for state file handling"
+  echo -e "  ${GREEN}●${RESET} ${BOLD}Templates${RESET}     — TASKS.md, PROGRESS.md, LOOP_CONFIG.md"
+  echo -e "  ${DIM}○${RESET} ${BOLD}Git Hooks${RESET}     — Pre-commit guardrail validation (optional)"
+  echo ""
+
+  local choice
+  choice=$(prompt_choice "What would you like to install?" \
+    "Everything (recommended)" \
+    "Choose components" \
+    "Minimal (agents + templates only)")
+
+  case "$choice" in
+    2)
+      prompt_yn "Install agents?" && install_agents=true || install_agents=false
+      prompt_yn "Install skills?" && install_skills=true || install_skills=false
+      prompt_yn "Install instructions?" && install_instructions=true || install_instructions=false
+      prompt_yn "Install templates as state files?" && install_templates=true || install_templates=false
+      prompt_yn "Install git hooks?" "n" && install_hooks=true || install_hooks=false
+      ;;
+    3)
+      install_skills=false
+      install_instructions=false
+      install_hooks=false
+      ;;
+    *)
+      prompt_yn "Also install git hooks (pre-commit guardrails)?" "n" && install_hooks=true || install_hooks=false
+      ;;
+  esac
+
+  echo ""
+
+  # ── Install components ──
+  header "Installing components"
+
+  local files_created=0
+
+  install_file() {
+    local src="$1"
+    local dst="$2"
+    mkdir -p "$(dirname "$dst")"
+
+    if [[ -f "$dst" ]]; then
+      echo -e "  ${DIM}⏭️  Exists: $dst${RESET}"
+      return
+    fi
+
+    if [[ -f "$src" ]]; then
+      cp "$src" "$dst"
+      [[ -x "$src" ]] && chmod +x "$dst"
+      success "Created $dst"
+      files_created=$((files_created + 1))
+    else
+      warn "Source not found: $src"
+    fi
+  }
+
+  # Agents
+  if [[ "$install_agents" == "true" ]]; then
+    info "Installing agents..."
+    install_file "$RWL_HOME/.github/agents/ralph-wiggum-loop.agent.md" ".github/agents/ralph-wiggum-loop.agent.md"
+    install_file "$RWL_HOME/.github/agents/loop-planner.agent.md" ".github/agents/loop-planner.agent.md"
+    install_file "$RWL_HOME/.github/agents/loop-reviewer.agent.md" ".github/agents/loop-reviewer.agent.md"
+    install_file "$RWL_HOME/AGENTS.md" "AGENTS.md"
+  fi
+
+  # Skills
+  if [[ "$install_skills" == "true" ]]; then
+    info "Installing skills..."
+    for skill_dir in loop-runner task-state-manager convergence-detector loop-guardrails; do
+      mkdir -p ".github/skills/$skill_dir"
+      for file in "$RWL_HOME/.github/skills/$skill_dir"/*; do
+        [[ -f "$file" ]] || continue
+        install_file "$file" ".github/skills/$skill_dir/$(basename "$file")"
+      done
+    done
+  fi
+
+  # Instructions
+  if [[ "$install_instructions" == "true" ]]; then
+    info "Installing instructions..."
+    install_file "$RWL_HOME/.github/copilot-instructions.md" ".github/copilot-instructions.md"
+    install_file "$RWL_HOME/.github/instructions/loop-tasks.instructions.md" ".github/instructions/loop-tasks.instructions.md"
+    install_file "$RWL_HOME/.github/instructions/loop-progress.instructions.md" ".github/instructions/loop-progress.instructions.md"
+  fi
+
+  # Templates → state files
+  if [[ "$install_templates" == "true" ]]; then
+    info "Creating state files from templates..."
+    for tmpl in TASKS.md PROGRESS.md LOOP_CONFIG.md; do
+      install_file "$RWL_HOME/templates/$tmpl" "$tmpl"
+    done
+  fi
+
+  # Hooks
+  if [[ "$install_hooks" == "true" ]]; then
+    if git rev-parse --is-inside-work-tree &>/dev/null 2>&1; then
+      info "Installing hooks..."
+      local hooks_dir
+      hooks_dir="$(git rev-parse --git-dir)/hooks"
+      install_file "$RWL_HOME/hooks/pre-commit" "$hooks_dir/pre-commit"
+      chmod +x "$hooks_dir/pre-commit" 2>/dev/null || true
+    else
+      warn "Skipping hooks — not a git repository"
+    fi
+  fi
+
+  echo ""
+
+  # ── Configure LOOP_CONFIG.md ──
+  if [[ -f "LOOP_CONFIG.md" ]]; then
+    header "Configuring loop"
+
+    local max_iter
+    max_iter=$(prompt_input "Maximum iterations" "20")
+
+    local timeout
+    timeout=$(prompt_input "Timeout per iteration (minutes)" "10")
+
+    # Confirm detected commands
+    info "Detected validation commands:"
+    [[ -n "$test_cmd" ]]  && bullet "Test:  $test_cmd"
+    [[ -n "$build_cmd" ]] && bullet "Build: $build_cmd"
+    [[ -n "$lint_cmd" ]]  && bullet "Lint:  $lint_cmd"
+
+    if ! prompt_yn "Use these validation commands?"; then
+      test_cmd=$(prompt_input "Test command (empty to skip)" "")
+      build_cmd=$(prompt_input "Build command (empty to skip)" "")
+      lint_cmd=$(prompt_input "Lint command (empty to skip)" "")
+    fi
+
+    # Allowed paths
+    echo ""
+    local detected_dirs
+    detected_dirs=$(detect_source_dirs)
+    info "Detected source directories:"
+    if [[ -n "$detected_dirs" ]]; then
+      for d in $detected_dirs; do
+        bullet "$d"
+      done
+    else
+      bullet "(none detected)"
+    fi
+
+    local custom_paths
+    custom_paths=$(prompt_input "Additional allowed paths (comma-separated, or empty)" "")
+    local allowed_paths="$detected_dirs"
+    if [[ -n "$custom_paths" ]]; then
+      IFS=',' read -ra extra <<< "$custom_paths"
+      for p in "${extra[@]}"; do
+        p=$(echo "$p" | xargs)
+        allowed_paths="$allowed_paths $p"
+      done
+    fi
+
+    # Write configured LOOP_CONFIG.md
+    local validation_lines=""
+    [[ -n "$test_cmd" ]]  && validation_lines="$test_cmd"
+    [[ -n "$build_cmd" ]] && validation_lines="${validation_lines:+$validation_lines
+}$build_cmd"
+    [[ -n "$lint_cmd" ]]  && validation_lines="${validation_lines:+$validation_lines
+}$lint_cmd"
+
+    local allowed_lines=""
+    for p in $allowed_paths; do
+      allowed_lines="${allowed_lines:+$allowed_lines
+}$p"
+    done
+
+    cat > LOOP_CONFIG.md << CONFIGEOF
+# Loop Configuration
+
+## Safety Limits
+- max_iterations: ${max_iter}
+- timeout_minutes: ${timeout}
+- auto_review_interval: 5
+
+## Validation Commands
+\`\`\`
+${validation_lines:-# (no validation commands configured)}
+\`\`\`
+
+## Allowed Paths
+\`\`\`
+${allowed_lines:-# (all paths allowed — configure for safety)}
+\`\`\`
+
+## Restricted Paths
+\`\`\`
+.env
+.env.*
+*.lock
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+Cargo.lock
+go.sum
+node_modules/**
+.git/**
+\`\`\`
+
+## Stop Conditions
+- All tasks in TASKS.md marked [x]
+- Same error occurring 3+ consecutive times (oscillation)
+- [STOP] flag present in TASKS.md
+- \`.loop-stop\` file exists in project root
+
+## Diff Limits
+- max_lines_per_iteration: 200
+- max_files_per_iteration: 10
+
+## Notes
+<!-- Project type: ${project_type} -->
+<!-- Generated by: rwl init -->
+CONFIGEOF
+
+    success "LOOP_CONFIG.md configured"
+  fi
+
+  echo ""
+
+  # ── Summary ──
+  header "Setup complete!"
+
+  echo -e "  ${GREEN}${files_created} files created${RESET}"
+  echo ""
+  echo -e "  ${BOLD}Next steps:${RESET}"
+  echo ""
+  echo -e "  ${CYAN}1.${RESET} Define your tasks:"
+  echo -e "     ${DIM}Edit TASKS.md or use: ${BOLD}rwl plan${RESET}"
+  echo ""
+  echo -e "  ${CYAN}2.${RESET} Review configuration:"
+  echo -e "     ${DIM}Check LOOP_CONFIG.md${RESET}"
+  echo ""
+  echo -e "  ${CYAN}3.${RESET} Verify setup:"
+  echo -e "     ${DIM}rwl doctor${RESET}"
+  echo ""
+  echo -e "  ${CYAN}4.${RESET} Start the loop:"
+  echo -e "     ${DIM}rwl run${RESET}"
+  echo ""
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# COMMAND: doctor — Verify Setup
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_doctor() {
+  show_banner
+  echo -e "${BOLD}Doctor — Setup Verification${RESET}"
+  echo ""
+
+  local issues=0
+  local warnings=0
+
+  # ── Git ──
+  header "Git"
+  if git rev-parse --is-inside-work-tree &>/dev/null 2>&1; then
+    success "Git repository: $(git rev-parse --show-toplevel)"
+  else
+    warn "Not a git repository"
+    warnings=$((warnings + 1))
+  fi
+
+  # ── Agents ──
+  header "Agents"
+  for agent in ralph-wiggum-loop loop-planner loop-reviewer; do
+    if [[ -f ".github/agents/${agent}.agent.md" ]]; then
+      success "$agent"
+    else
+      err "$agent — not found at .github/agents/${agent}.agent.md"
+      issues=$((issues + 1))
+    fi
+  done
+
+  # ── Skills ──
+  header "Skills"
+  for skill in loop-runner task-state-manager convergence-detector loop-guardrails; do
+    if [[ -f ".github/skills/$skill/SKILL.md" ]]; then
+      success "$skill"
+      for s in ".github/skills/$skill"/*.sh; do
+        [[ -f "$s" ]] || continue
+        if [[ -x "$s" ]]; then
+          bullet "$(basename "$s") (executable ✓)"
+        else
+          warn "$(basename "$s") not executable — run: chmod +x $s"
+          warnings=$((warnings + 1))
+        fi
+      done
+    else
+      err "$skill — not found"
+      issues=$((issues + 1))
+    fi
+  done
+
+  # ── Instructions ──
+  header "Instructions"
+  for instr in .github/copilot-instructions.md AGENTS.md; do
+    if [[ -f "$instr" ]]; then
+      success "$instr"
+    else
+      warn "$instr — not found (optional)"
+      warnings=$((warnings + 1))
+    fi
+  done
+  for instr in .github/instructions/loop-tasks.instructions.md .github/instructions/loop-progress.instructions.md; do
+    if [[ -f "$instr" ]]; then
+      success "$(basename "$instr")"
+    else
+      warn "$(basename "$instr") — not found"
+      warnings=$((warnings + 1))
+    fi
+  done
+
+  # ── State Files ──
+  header "State Files"
+  for state_file in TASKS.md PROGRESS.md LOOP_CONFIG.md; do
+    if [[ -f "$state_file" ]]; then
+      local lines
+      lines=$(wc -l < "$state_file" | tr -d ' ')
+      success "$state_file ($lines lines)"
+    else
+      if [[ "$state_file" == "TASKS.md" ]]; then
+        err "$state_file — required before running"
+        issues=$((issues + 1))
+      else
+        warn "$state_file — not found"
+        warnings=$((warnings + 1))
+      fi
+    fi
+  done
+
+  # Check TASKS.md content
+  if [[ -f "TASKS.md" ]]; then
+    local task_count
+    task_count=$(grep -cE '^\s*###' TASKS.md 2>/dev/null) || task_count=0
+    if [[ "$task_count" -eq 0 ]]; then
+      task_count=$(grep -cE '\[ \]|\[~\]|\[x\]|\[!\]' TASKS.md 2>/dev/null) || task_count=0
+    fi
+    if [[ "$task_count" -eq 0 ]]; then
+      warn "TASKS.md has no tasks defined yet"
+      warnings=$((warnings + 1))
+    else
+      bullet "$task_count task(s) defined"
+    fi
+  fi
+
+  # ── LOOP_CONFIG.md validation ──
+  if [[ -f "LOOP_CONFIG.md" ]]; then
+    header "Configuration"
+
+    # Check validation commands
+    local has_validation=false
+    if grep -A5 '## Validation Commands' LOOP_CONFIG.md | grep -qvE '^\s*$|^#|^`|^##' 2>/dev/null; then
+      has_validation=true
+      success "Validation commands configured"
+    else
+      warn "No validation commands in LOOP_CONFIG.md"
+      warnings=$((warnings + 1))
+    fi
+
+    # Check max_iterations
+    local max_iter
+    max_iter=$(grep -oE 'max_iterations:\s*[0-9]+' LOOP_CONFIG.md 2>/dev/null | grep -oE '[0-9]+' || echo "")
+    if [[ -n "$max_iter" ]]; then
+      success "Max iterations: $max_iter"
+    else
+      warn "max_iterations not set"
+      warnings=$((warnings + 1))
+    fi
+  fi
+
+  # ── Hooks ──
+  header "Git Hooks"
+  if git rev-parse --is-inside-work-tree &>/dev/null 2>&1; then
+    local hooks_dir
+    hooks_dir="$(git rev-parse --git-dir)/hooks"
+    if [[ -f "$hooks_dir/pre-commit" ]] && grep -q "guardrail\|Ralph Wiggum\|loop" "$hooks_dir/pre-commit" 2>/dev/null; then
+      success "Pre-commit hook installed"
+    else
+      bullet "Pre-commit hook not installed (optional)"
+    fi
+  fi
+
+  # ── Stale artifacts ──
+  header "Stale Artifacts"
+  if [[ -f ".loop-stop" ]]; then
+    warn "Found .loop-stop — remove before starting: rm .loop-stop"
+    warnings=$((warnings + 1))
+  else
+    success "No stale stop flags"
+  fi
+
+  # ── Summary ──
+  echo ""
+  separator
+  if [[ $issues -eq 0 ]] && [[ $warnings -eq 0 ]]; then
+    echo -e "  ${GREEN}${BOLD}All checks passed!${RESET} Ready for the loop."
+  elif [[ $issues -eq 0 ]]; then
+    echo -e "  ${YELLOW}${BOLD}$warnings warning(s)${RESET} — loop can run, review items above."
+  else
+    echo -e "  ${RED}${BOLD}$issues issue(s)${RESET}, ${YELLOW}$warnings warning(s)${RESET}"
+  fi
+  echo ""
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# COMMAND: status — Dashboard
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_status() {
+  echo ""
+  echo -e "${BOLD}  🚌 Ralph Wiggum Loop — Status Dashboard${RESET}"
+  echo ""
+
+  if [[ ! -f "TASKS.md" ]]; then
+    warn "No TASKS.md found. Run 'rwl init' first."
+    return 1
+  fi
+
+  # ── Task Summary ──
+  local pending in_progress done_count failed stopped total
+  pending=$(grep -c '\[ \]' TASKS.md 2>/dev/null) || pending=0
+  in_progress=$(grep -c '\[~\]' TASKS.md 2>/dev/null) || in_progress=0
+  done_count=$(grep -c '\[x\]' TASKS.md 2>/dev/null) || done_count=0
+  failed=$(grep -c '\[!\]' TASKS.md 2>/dev/null) || failed=0
+  stopped=$(grep -c '\[STOP\]' TASKS.md 2>/dev/null) || stopped=0
+  total=$((pending + in_progress + done_count + failed + stopped))
+
+  header "Tasks"
+
+  if [[ $total -gt 0 ]]; then
+    echo -n "  "
+    progress_bar "$done_count" "$total" 30
+    echo "  (${done_count}/${total})"
+    echo ""
+  fi
+
+  echo -e "  ${DIM}Pending${RESET}       ${WHITE}[ ]${RESET}  ${pending}"
+  echo -e "  ${CYAN}In Progress${RESET}   ${CYAN}[~]${RESET}  ${in_progress}"
+  echo -e "  ${GREEN}Done${RESET}          ${GREEN}[x]${RESET}  ${done_count}"
+  echo -e "  ${RED}Failed${RESET}        ${RED}[!]${RESET}  ${failed}"
+  [[ "$stopped" -gt 0 ]] && echo -e "  ${RED}${BOLD}STOPPED${RESET}    ${RED}[STOP]${RESET}  ${stopped}"
+
+  # ── List task names with status ──
+  if [[ $total -gt 0 ]] && [[ $total -le 30 ]]; then
+    echo ""
+    echo -e "  ${DIM}Task List:${RESET}"
+
+    local task_num=0
+    while IFS= read -r line; do
+      if [[ "$line" =~ ^###\s+(.+)$ ]]; then
+        task_num=$((task_num + 1))
+        local task_title="${BASH_REMATCH[1]}"
+        # Read next few lines to find status
+        local status_icon="${DIM}○${RESET}"
+        local status_text="pending"
+        # Search for status after this heading
+        local next_status
+        next_status=$(sed -n "/^### ${task_title//\//\\/}/,/^###/{ /Status/p; }" TASKS.md 2>/dev/null | head -1)
+        if echo "$next_status" | grep -q '\[x\]' 2>/dev/null; then
+          status_icon="${GREEN}✓${RESET}"
+          status_text="${GREEN}done${RESET}"
+        elif echo "$next_status" | grep -q '\[~\]' 2>/dev/null; then
+          status_icon="${CYAN}◉${RESET}"
+          status_text="${CYAN}in progress${RESET}"
+        elif echo "$next_status" | grep -q '\[!\]' 2>/dev/null; then
+          status_icon="${RED}✗${RESET}"
+          status_text="${RED}failed${RESET}"
+        elif echo "$next_status" | grep -q '\[STOP\]' 2>/dev/null; then
+          status_icon="${RED}■${RESET}"
+          status_text="${RED}STOPPED${RESET}"
+        fi
+        echo -e "    ${status_icon} ${task_title} ${DIM}(${status_text}${DIM})${RESET}"
+      fi
+    done < TASKS.md
+  fi
+
+  # ── Progress Info ──
+  if [[ -f "PROGRESS.md" ]]; then
+    echo ""
+    header "Progress"
+    local iter_count
+    iter_count=$(grep -c '^## Iteration' PROGRESS.md 2>/dev/null) || iter_count=0
+    local success_count
+    success_count=$(grep -c '✅ Success' PROGRESS.md 2>/dev/null) || success_count=0
+    local fail_count
+    fail_count=$(grep -c '❌ Failed' PROGRESS.md 2>/dev/null) || fail_count=0
+    local lines
+    lines=$(wc -l < PROGRESS.md | tr -d ' ')
+
+    echo -e "  Iterations: ${BOLD}${iter_count}${RESET}  (${GREEN}${success_count}✓${RESET} ${RED}${fail_count}✗${RESET})"
+    echo -e "  File size:  ${lines} lines"
+
+    if [[ "$lines" -gt 500 ]]; then
+      warn "PROGRESS.md is large — consider: rwl compact"
+    fi
+
+    # Last iteration
+    if [[ $iter_count -gt 0 ]]; then
+      echo ""
+      echo -e "  ${DIM}Last iteration:${RESET}"
+      # Get everything from the last "## Iteration" to end or next section
+      awk '/^## Iteration/{last=$0; block=""} last{block=block $0 "\n"} END{printf "%s",block}' PROGRESS.md | head -8 | sed 's/^/    /'
+    fi
+  fi
+
+  # ── Config Summary ──
+  if [[ -f "LOOP_CONFIG.md" ]]; then
+    echo ""
+    header "Config"
+    local max_iter timeout_min
+    max_iter=$(grep -oE 'max_iterations:\s*[0-9]+' LOOP_CONFIG.md 2>/dev/null | grep -oE '[0-9]+' || echo "?")
+    timeout_min=$(grep -oE 'timeout_minutes:\s*[0-9]+' LOOP_CONFIG.md 2>/dev/null | grep -oE '[0-9]+' || echo "?")
+    echo -e "  Max iterations: ${BOLD}${max_iter}${RESET}  Timeout: ${BOLD}${timeout_min}m${RESET}"
+  fi
+
+  # ── Stop conditions ──
+  if [[ -f ".loop-stop" ]]; then
+    echo ""
+    echo -e "  ${RED}■ .loop-stop file exists${RESET} — loop halted"
+  fi
+
+  echo ""
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# COMMAND: plan — Interactive Task Creator
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_plan() {
+  show_banner
+  echo -e "${BOLD}Task Planner${RESET}"
+  echo -e "${DIM}Create a structured task list for the Ralph Wiggum Loop.${RESET}"
+  echo ""
+
+  # ── Objective ──
+  header "Objective"
+  echo -e "  ${DIM}What is the overall goal of this loop run?${RESET}"
+  local objective
+  objective=$(prompt_input "Objective")
+  [[ -z "$objective" ]] && { err "Objective is required."; return 1; }
+
+  # ── Success Criteria ──
+  echo ""
+  header "Success Criteria"
+  local criteria
+  criteria=$(prompt_input "How will you know it's complete?" "All tests pass, build succeeds")
+
+  # ── Default Validation ──
+  echo ""
+  header "Default Validation Command"
+  local detection
+  detection=$(detect_project_type)
+  IFS='|' read -r _ detected_test _ _ <<< "$detection"
+
+  local validation
+  validation=$(prompt_input "Validation command" "${detected_test:-make test}")
+
+  # ── Tasks ──
+  echo ""
+  header "Tasks"
+  echo -e "  ${DIM}Add tasks one at a time. Enter an empty title to finish.${RESET}"
+  echo ""
+
+  local tasks=()
+  local task_files=()
+  local task_descs=()
+  local task_deps=()
+  local task_validations=()
+  local task_num=0
+
+  while true; do
+    task_num=$((task_num + 1))
+    echo -e "  ${CYAN}── Task ${task_num} ──${RESET}"
+
+    local title
+    title=$(prompt_input "Title (empty to finish)")
+    [[ -z "$title" ]] && break
+
+    local files
+    files=$(prompt_input "Files to modify (optional)" "")
+
+    local desc
+    desc=$(prompt_input "Description (optional)" "")
+
+    local deps=""
+    if [[ $task_num -gt 1 ]]; then
+      deps=$(prompt_input "Depends on tasks (e.g. '1,2', or empty)" "")
+    fi
+
+    local task_val
+    task_val=$(prompt_input "Validation" "$validation")
+
+    tasks+=("$title")
+    task_files+=("$files")
+    task_descs+=("$desc")
+    task_deps+=("$deps")
+    task_validations+=("$task_val")
+    echo ""
+  done
+
+  [[ ${#tasks[@]} -eq 0 ]] && { warn "No tasks defined."; return 1; }
+
+  # ── Final smoke test ──
+  echo ""
+  if prompt_yn "Add a final smoke test task?"; then
+    tasks+=("Final Smoke Test")
+    task_files+=("")
+    task_descs+=("Run full validation suite to verify overall integration")
+    task_deps+=("All previous tasks")
+    task_validations+=("$validation")
+  fi
+
+  # ── Generate TASKS.md ──
+  echo ""
+  header "Generating TASKS.md"
+
+  {
+    echo "# Tasks"
+    echo ""
+    echo "## Objective"
+    echo "$objective"
+    echo ""
+    echo "## Success Criteria"
+    echo "$criteria"
+    echo ""
+    echo "## Task List"
+
+    for i in "${!tasks[@]}"; do
+      local num=$((i + 1))
+      echo ""
+      echo "### ${num}. ${tasks[$i]}"
+      echo "- **Status:** [ ]"
+      [[ -n "${task_deps[$i]}" ]] && echo "- **Depends on:** Task ${task_deps[$i]}"
+      [[ -n "${task_files[$i]}" ]] && echo "- **Files:** \`${task_files[$i]}\`"
+      [[ -n "${task_descs[$i]}" ]] && echo "- **Description:** ${task_descs[$i]}"
+      [[ -n "${task_validations[$i]}" ]] && echo "- **Validation:** \`${task_validations[$i]}\`"
+    done
+
+    echo ""
+    echo "<!--"
+    echo "Status markers:"
+    echo "  [ ]     pending — not yet started"
+    echo "  [~]     in progress — being worked on"
+    echo "  [x]     done — completed successfully"
+    echo "  [!]     failed — include error details below"
+    echo "  [STOP]  emergency stop — halts the loop"
+    echo "-->"
+  } > TASKS.md.new
+
+  if [[ -f "TASKS.md" ]]; then
+    if prompt_yn "TASKS.md exists. Overwrite?"; then
+      mv TASKS.md.new TASKS.md
+      success "TASKS.md updated with ${#tasks[@]} tasks"
+    else
+      mv TASKS.md.new TASKS.generated.md
+      success "Saved to TASKS.generated.md (rename when ready)"
+    fi
+  else
+    mv TASKS.md.new TASKS.md
+    success "TASKS.md created with ${#tasks[@]} tasks"
+  fi
+
+  # Create PROGRESS.md if missing
+  if [[ ! -f "PROGRESS.md" ]]; then
+    cat > PROGRESS.md << 'EOF'
+# Progress Log
+
+> Ralph Wiggum Loop — Iteration History
+
+---
+
+EOF
+    success "PROGRESS.md created"
+  fi
+
+  echo ""
+  echo -e "  ${BOLD}Ready!${RESET} Run ${CYAN}rwl doctor${RESET} to verify, then ${CYAN}rwl run${RESET} to start."
+  echo ""
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# COMMAND: add-task — Add a Single Task
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_add_task() {
+  if [[ ! -f "TASKS.md" ]]; then
+    err "TASKS.md not found. Run 'rwl init' or 'rwl plan' first."
+    return 1
+  fi
+
+  echo ""
+  echo -e "${BOLD}Add Task${RESET}"
+  echo ""
+
+  local existing
+  existing=$(grep -c '^\s*###' TASKS.md 2>/dev/null) || existing=0
+  local next_num=$((existing + 1))
+
+  local title
+  title=$(prompt_input "Task title")
+  [[ -z "$title" ]] && { err "Title required."; return 1; }
+
+  local files
+  files=$(prompt_input "Files to modify (optional)" "")
+
+  local desc
+  desc=$(prompt_input "Description (optional)" "")
+
+  local deps=""
+  [[ $existing -gt 0 ]] && deps=$(prompt_input "Depends on tasks (e.g. '1,2')" "")
+
+  local val
+  val=$(prompt_input "Validation command (optional)" "")
+
+  # Build task block
+  local task_block=""
+  task_block+=$'\n'"### ${next_num}. ${title}"
+  task_block+=$'\n'"- **Status:** [ ]"
+  [[ -n "$deps" ]]  && task_block+=$'\n'"- **Depends on:** Task ${deps}"
+  [[ -n "$files" ]] && task_block+=$'\n'"- **Files:** \`${files}\`"
+  [[ -n "$desc" ]]  && task_block+=$'\n'"- **Description:** ${desc}"
+  [[ -n "$val" ]]   && task_block+=$'\n'"- **Validation:** \`${val}\`"
+
+  # Insert before trailing comment block
+  if grep -qn '^<!--' TASKS.md; then
+    local comment_line
+    comment_line=$(grep -n '^<!--' TASKS.md | tail -1 | cut -d: -f1)
+    {
+      head -n "$((comment_line - 1))" TASKS.md
+      echo "$task_block"
+      echo ""
+      tail -n +"$comment_line" TASKS.md
+    } > TASKS.md.tmp
+    mv TASKS.md.tmp TASKS.md
+  else
+    echo "$task_block" >> TASKS.md
+  fi
+
+  success "Task ${next_num} added: ${title}"
+  echo ""
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# COMMAND: run — Start the Loop
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_run() {
+  local runner=".github/skills/loop-runner/run-loop.sh"
+
+  if [[ -f "$runner" ]]; then
+    exec bash "$runner" "$@"
+  else
+    err "Loop runner not found at $runner"
+    bullet "Run 'rwl init' to install components"
+    return 1
+  fi
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# COMMAND: run-one — Single Iteration
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_run_one() {
+  if [[ ! -f "TASKS.md" ]]; then
+    err "No TASKS.md found."
+    return 1
+  fi
+
+  info "Running single iteration..."
+  echo ""
+
+  if command -v copilot &>/dev/null; then
+    copilot \
+      --agent="ralph-wiggum-loop" \
+      --prompt "Execute one task from TASKS.md. Read TASKS.md and PROGRESS.md, find the next pending or failed task, execute it, then update both files." \
+      "$@"
+  else
+    warn "copilot CLI not found — attempting with 'gh copilot'..."
+    gh copilot suggest \
+      "Execute one Ralph Wiggum Loop iteration: read TASKS.md, do the next pending task, update PROGRESS.md" \
+      "$@" 2>/dev/null || {
+        err "Neither 'copilot' nor 'gh copilot' found."
+        return 1
+      }
+  fi
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# COMMAND: stop — Create Stop Flag
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_stop() {
+  touch .loop-stop
+  success "Stop flag created (.loop-stop)"
+  info "Loop will halt at end of current iteration."
+  info "Remove with: rm .loop-stop"
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# COMMAND: compact — Compact PROGRESS.md
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_compact() {
+  if [[ ! -f "PROGRESS.md" ]]; then
+    warn "No PROGRESS.md found."
+    return 0
+  fi
+
+  local lines
+  lines=$(wc -l < PROGRESS.md | tr -d ' ')
+  local iter_count
+  iter_count=$(grep -c '^## Iteration' PROGRESS.md 2>/dev/null) || iter_count=0
+
+  info "PROGRESS.md: ${lines} lines, ${iter_count} iterations"
+
+  if [[ "$lines" -lt 100 ]]; then
+    success "File is small — no compaction needed."
+    return 0
+  fi
+
+  local keep="${1:-5}"
+  info "Keeping last ${keep} iterations"
+
+  local successes failures
+  successes=$(grep -c '✅ Success' PROGRESS.md 2>/dev/null) || successes=0
+  failures=$(grep -c '❌ Failed' PROGRESS.md 2>/dev/null) || failures=0
+
+  cp PROGRESS.md PROGRESS.md.bak
+  success "Backup: PROGRESS.md.bak"
+
+  local compacted_before=$((iter_count - keep))
+  [[ $compacted_before -lt 0 ]] && compacted_before=0
+
+  {
+    cat << EOF
+# Progress Log
+
+> Ralph Wiggum Loop — Iteration History
+> Compacted: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+---
+
+## Summary (Iterations 1–${compacted_before})
+
+- **Total iterations:** ${compacted_before}
+- **Successes:** ~${successes}
+- **Failures:** ~${failures}
+
+> Older iteration details compacted. Full history in PROGRESS.md.bak.
+
+---
+
+EOF
+
+    if [[ $keep -gt 0 ]] && [[ $iter_count -gt 0 ]]; then
+      local start_line
+      start_line=$(grep -n '^## Iteration' PROGRESS.md | tail -"$keep" | head -1 | cut -d: -f1)
+      [[ -n "$start_line" ]] && tail -n +"$start_line" PROGRESS.md
+    fi
+  } > PROGRESS.md.tmp
+
+  mv PROGRESS.md.tmp PROGRESS.md
+
+  local new_lines
+  new_lines=$(wc -l < PROGRESS.md | tr -d ' ')
+  success "Compacted: ${lines} → ${new_lines} lines"
+  echo ""
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# COMMAND: reset — Reset Loop State
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_reset() {
+  echo ""
+  echo -e "${BOLD}Reset Loop State${RESET}"
+  echo ""
+
+  local choice
+  choice=$(prompt_choice "What would you like to reset?" \
+    "Progress only (reset task statuses, clear PROGRESS.md)" \
+    "Full reset (remove all state files)" \
+    "Cancel")
+
+  case "$choice" in
+    1)
+      cat > PROGRESS.md << 'EOF'
+# Progress Log
+
+> Ralph Wiggum Loop — Iteration History
+
+---
+
+EOF
+      rm -f .loop-stop
+      rm -rf .loop-logs
+
+      if [[ -f "TASKS.md" ]]; then
+        sed -i.bak 's/\[x\]/[ ]/g; s/\[~\]/[ ]/g; s/\[!\]/[ ]/g' TASKS.md
+        rm -f TASKS.md.bak
+        success "Task statuses reset to [ ]"
+      fi
+
+      success "Progress cleared, tasks kept."
+      ;;
+    2)
+      if prompt_yn "Delete TASKS.md, PROGRESS.md, LOOP_CONFIG.md?" "n"; then
+        rm -f TASKS.md PROGRESS.md LOOP_CONFIG.md .loop-stop
+        rm -rf .loop-logs
+        success "All state files removed."
+        info "Run 'rwl init' to start fresh."
+      else
+        info "Cancelled."
+      fi
+      ;;
+    *)
+      info "Cancelled."
+      ;;
+  esac
+  echo ""
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# COMMAND: health — Convergence + Guardrail Checks
+# ══════════════════════════════════════════════════════════════════════
+
+cmd_health() {
+  echo ""
+  echo -e "${BOLD}  🏥 Loop Health Check${RESET}"
+  echo ""
+
+  local convergence=".github/skills/convergence-detector/check-convergence.sh"
+  local guardrails=".github/skills/loop-guardrails/check-guardrails.sh"
+
+  if [[ -f "$convergence" ]]; then
+    bash "$convergence" --mode all || true
+    echo ""
+  else
+    warn "Convergence detector not found"
+  fi
+
+  separator
+
+  if [[ -f "$guardrails" ]]; then
+    echo ""
+    bash "$guardrails" || true
+  else
+    warn "Guardrails checker not found"
+  fi
+
+  echo ""
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# Main Router
+# ══════════════════════════════════════════════════════════════════════
+
+main() {
+  local command="${1:-help}"
+  shift 2>/dev/null || true
+
+  case "$command" in
+    init)      cmd_init "$@" ;;
+    doctor)    cmd_doctor "$@" ;;
+    status)    cmd_status "$@" ;;
+    plan)      cmd_plan "$@" ;;
+    add-task)  cmd_add_task "$@" ;;
+    run)       cmd_run "$@" ;;
+    run-one)   cmd_run_one "$@" ;;
+    stop)      cmd_stop "$@" ;;
+    compact)   cmd_compact "$@" ;;
+    reset)     cmd_reset "$@" ;;
+    health)    cmd_health "$@" ;;
+    version|-v|--version) cmd_version ;;
+    help|--help|-h) cmd_help ;;
+    *)
+      err "Unknown command: $command"
+      echo ""
+      cmd_help
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"
