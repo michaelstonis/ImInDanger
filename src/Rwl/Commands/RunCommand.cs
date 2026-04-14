@@ -7,7 +7,7 @@ namespace Rwl.Commands;
 
 public sealed class RunCommand : Command
 {
-    public override int Execute(CommandContext context)
+    protected override int Execute(CommandContext context, CancellationToken cancellation)
     {
         var runner = Path.Combine(".github", "skills", "loop-runner", "run-loop.sh");
 

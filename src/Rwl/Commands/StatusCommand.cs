@@ -6,7 +6,7 @@ namespace Rwl.Commands;
 
 public sealed class StatusCommand : Command
 {
-    public override int Execute(CommandContext context)
+    protected override int Execute(CommandContext context, CancellationToken cancellation)
     {
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[bold]  🚌 Ralph Wiggum Loop — Status Dashboard[/]");

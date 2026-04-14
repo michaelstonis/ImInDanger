@@ -13,7 +13,7 @@ public sealed class AddTaskSettings : CommandSettings
 
 public sealed class AddTaskCommand : Command<AddTaskSettings>
 {
-    public override int Execute(CommandContext context, AddTaskSettings settings)
+    protected override int Execute(CommandContext context, AddTaskSettings settings, CancellationToken cancellation)
     {
         if (!File.Exists("TASKS.md"))
         {

@@ -16,7 +16,7 @@ public sealed class CompactSettings : CommandSettings
 
 public sealed class CompactCommand : Command<CompactSettings>
 {
-    public override int Execute(CommandContext context, CompactSettings settings)
+    protected override int Execute(CommandContext context, CompactSettings settings, CancellationToken cancellation)
     {
         if (!File.Exists("PROGRESS.md"))
         {

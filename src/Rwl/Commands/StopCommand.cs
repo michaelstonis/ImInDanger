@@ -5,7 +5,7 @@ namespace Rwl.Commands;
 
 public sealed class StopCommand : Command
 {
-    public override int Execute(CommandContext context)
+    protected override int Execute(CommandContext context, CancellationToken cancellation)
     {
         File.Create(".loop-stop").Dispose();
         AnsiConsole.MarkupLine("[green]✓[/] Stop flag created (.loop-stop)");

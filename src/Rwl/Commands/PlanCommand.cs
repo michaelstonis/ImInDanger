@@ -6,7 +6,7 @@ namespace Rwl.Commands;
 
 public sealed class PlanCommand : Command
 {
-    public override int Execute(CommandContext context)
+    protected override int Execute(CommandContext context, CancellationToken cancellation)
     {
         Banner.Show();
         AnsiConsole.MarkupLine("[bold]Task Planner[/]");

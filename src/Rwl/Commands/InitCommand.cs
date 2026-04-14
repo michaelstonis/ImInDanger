@@ -26,7 +26,7 @@ public sealed class InitSettings : CommandSettings
 
 public sealed class InitCommand : Command<InitSettings>
 {
-    public override int Execute(CommandContext context, InitSettings settings)
+    protected override int Execute(CommandContext context, InitSettings settings, CancellationToken cancellation)
     {
         Banner.Show();
         AnsiConsole.MarkupLine("[bold]Initialize Ralph Wiggum Loop[/]");
