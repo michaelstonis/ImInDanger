@@ -23,6 +23,10 @@
 - [Architecture](#architecture)
 - [Quick Start](#quick-start)
 - [CLI Reference (`rwl`)](#cli-reference-rwl)
+- [VS Code Agent Plugin](#vs-code-agent-plugin)
+  - [Installation](#plugin-installation)
+  - [What the Plugin Provides](#what-the-plugin-provides)
+  - [Plugin Hooks](#plugin-hooks)
 - [Components](#components)
   - [Agents](#agents)
   - [Skills](#skills)
@@ -470,6 +474,85 @@ $ rwl doctor
 
   0 issue(s), 0 warning(s)
 ```
+
+---
+
+## VS Code Agent Plugin
+
+The Ralph Wiggum Loop ships as a **VS Code Copilot Plugin** that bundles all agents, skills, and hooks into an installable package. Once installed, the agents and skills are available directly in the Copilot Chat interface.
+
+### Plugin Installation
+
+**Prerequisites:**
+
+- VS Code with GitHub Copilot extension
+- Enable plugins in VS Code settings:
+
+  ```json
+  // .vscode/settings.json
+  "chat.plugins.enabled": true
+  ```
+
+**Option 1 — Install via Git URL (recommended)**
+
+1. Open VS Code Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`)
+2. Run: **GitHub Copilot: Install Plugin From Source**
+3. Enter: `https://github.com/mstonis/ImInDanger`
+4. The plugin will be cloned and registered automatically
+
+**Option 2 — Local development / sideload**
+
+```jsonc
+// .vscode/settings.json (or User settings)
+"chat.pluginLocations": [
+  "/path/to/ImInDanger"
+]
+```
+
+**Option 3 — Marketplace (github/awesome-copilot)**
+
+```bash
+copilot plugin install ralph-wiggum-loop@awesome-copilot
+```
+
+### What the Plugin Provides
+
+| Component | Invoke |
+|-----------|--------|
+| `@ralph-wiggum-loop` agent | `@ralph-wiggum-loop run one iteration` |
+| `@loop-planner` agent | `@loop-planner break down my tasks` |
+| `@loop-reviewer` agent | `@loop-reviewer check loop health` |
+| `loop-runner` skill | `/loop-runner` |
+| `task-state-manager` skill | `/task-state-manager` |
+| `convergence-detector` skill | `/convergence-detector` |
+| `loop-guardrails` skill | `/loop-guardrails` |
+
+#### Agent Handoffs
+
+Agents wire together with one-click handoffs:
+
+- **`@loop-planner`** → after planning, offers "▶️ Start Loop" → hands off to `@ralph-wiggum-loop`
+- **`@ralph-wiggum-loop`** → after executing, offers "🔍 Review Loop Health" → hands off to `@loop-reviewer`
+- **`@loop-reviewer`** → after reviewing, offers "▶️ Continue Loop" or "📋 Replan Tasks"
+
+### Plugin Hooks
+
+The plugin installs two VS Code lifecycle hooks automatically:
+
+| Hook | Trigger | Effect |
+|------|---------|--------|
+| `session-start.sh` | Start of every Copilot session | Injects TASKS.md/PROGRESS.md state summary as context |
+| `session-stop.sh` | End of every Copilot session | Warns if tasks are still `[~]` in-progress |
+
+**Session Start Output Example:**
+
+```
+🔄 Ralph Wiggum Loop — 4/7 tasks done, 1 in-progress, 2 pending. Last recorded: ## Iteration 5 — 2025-01-15T10:30:00Z.
+```
+
+This message is injected as a system-level context message so the agent always starts with situational awareness.
+
+**Plugin Manifest:** `.github/plugin/plugin.json`
 
 ---
 

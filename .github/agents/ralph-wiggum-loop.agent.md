@@ -6,6 +6,15 @@ description: >
   writes results back, and restarts with a clean context window. Use this agent when asked
   to run a loop, execute iterative tasks, or perform Ralph Wiggum Loop operations.
 tools: ["read", "edit", "search", "shell", "create"]
+handoffs:
+  - label: "🔍 Review Loop Health"
+    agent: loop-reviewer
+    prompt: "Please review the current loop progress in PROGRESS.md and TASKS.md and report on loop health, any convergence issues, and whether the loop should continue or stop."
+    send: false
+  - label: "📋 Replan Tasks"
+    agent: loop-planner
+    prompt: "The loop has encountered issues. Please review the current TASKS.md and PROGRESS.md and help replan the remaining work."
+    send: false
 ---
 
 # Ralph Wiggum Loop — Orchestrator Agent

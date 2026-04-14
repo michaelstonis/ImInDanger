@@ -1,0 +1,30 @@
+{
+  "name": "ralph-wiggum-loop",
+  "description": "Iterative fresh-context agent loop pattern for complex multi-step coding tasks. Provides agents, skills, and hooks for orchestrating, planning, reviewing, and guarding the Ralph Wiggum Loop — a pattern that turns context window degradation into a feature.",
+  "version": "1.0.0",
+  "author": {
+    "name": "ImInDanger"
+  },
+  "repository": "https://github.com/mstonis/ImInDanger",
+  "license": "MIT",
+  "keywords": [
+    "loop",
+    "iterative",
+    "fresh-context",
+    "agent-pattern",
+    "task-management",
+    "orchestration",
+    "ralph-wiggum",
+    "copilot-loop"
+  ],
+  "category": "productivity",
+  "agents": [
+    ".github/agents"
+  ],
+  "skills": [
+    ".github/skills/loop-runner",
+    ".github/skills/task-state-manager",
+    ".github/skills/convergence-detector",
+    ".github/skills/loop-guardrails"
+  ]
+}
