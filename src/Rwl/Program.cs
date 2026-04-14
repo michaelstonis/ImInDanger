@@ -1,6 +1,10 @@
 using Rwl.Commands;
 using Spectre.Console.Cli;
 
+// Show the banner when invoked with no args or a top-level help flag
+if (args.Length == 0 || (args.Length == 1 && args[0] is "--help" or "-h"))
+    Banner.Show();
+
 var app = new CommandApp();
 
 app.Configure(config =>
