@@ -4,24 +4,22 @@ namespace Rwl.Commands;
 
 public static class Banner
 {
-    // ASCII Ralph Wiggum, columns 0-29 art | columns 32+ quote
+    // ASCII Ralph Wiggum face (Simpsons-style), all art strings padded to 32 chars
     private static readonly (string Art, string Quote)[] Lines =
     [
-        (@"          .-------.         ", ""),
-        (@"         /  .   .  \        ", ""),
-        (@"        | (o)   (o) |       ", "  [italic dim]\"My context window[/]"),
-        (@"        |     _     |       ", "  [italic dim]smells like[/]"),
-        (@"        |   (___)   |       ", "  [italic dim]fresh tasks.\"[/]"),
-        (@"         \  '---'  /        ", ""),
-        (@"          '-------'         ", ""),
-        (@"               |            ", ""),
-        (@"          _____|_____       ", ""),
-        (@"         /   R W L   \      ", ""),
-        (@"        |    v 2.0    |     ", ""),
-        (@"         \___________/      ", ""),
-        (@"              | |           ", ""),
-        (@"             _| |_          ", ""),
-        (@"            |_____|         ", ""),
+        (@"         .-----------.          ", ""),
+        (@"        /  ~~~~~~~~~  \         ", ""),
+        (@"       |               |        ", ""),
+        (@"       |    _      _   |        ", ""),
+        (@"       |  ( O )  ( O ) |        ", "  [italic dim]\"My context window[/]"),
+        (@"       |               |        ", "  [italic dim] smells like[/]"),
+        (@"       |     ( . )     |        ", "  [italic dim] fresh tasks.\"[/]"),
+        (@"       |               |        ", ""),
+        (@"       |    \_____/    |        ", ""),
+        (@"        \             /         ", ""),
+        (@"         '-----------'          ", ""),
+        (@"               | |              ", ""),
+        (@"              _| |_             ", ""),
     ];
 
     public static void Show()
