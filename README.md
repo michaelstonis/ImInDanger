@@ -226,6 +226,95 @@ ImInDanger/
 
 ---
 
+## GitHub Copilot SDK Integration
+
+The `rwl` CLI integrates natively with the **GitHub Copilot SDK** (`GitHub.Copilot.SDK` v0.2.2+) to replace fragile shell-outs with a first-class .NET agent experience. When the SDK is available and authenticated, `rwl run` and `rwl run-one` drive the agent programmatically — with streaming output, custom tools, and enforced guardrails — all from within the process.
+
+### How It Works
+
+Instead of spawning an external `copilot` CLI process, `rwl` uses the SDK to:
+
+1. **Create a `CopilotClient`** (`CopilotService`) — registers custom tools and hooks once at startup
+2. **Open a fresh `CopilotSession` per iteration** — implements the core Ralph Wiggum Loop pattern; fresh context every time, no leakage between iterations
+3. **Inject the loop protocol as a system message** — uses `SystemMessageMode.Append` so the agent knows it must complete exactly one task and update state files
+4. **Stream output in real time** — `AssistantMessageDeltaEvent` events are rendered live in the terminal via Spectre.Console
+
+```
+rwl run-one
+```
+
+```
+[Iteration 3]  Executing task: "Add unit tests for AuthService"
+───────────────────────────────────────────────────────────────
+▶ Agent: Reading current task list...
+▶ Agent: Reading recent progress...
+▶ Agent: Checking config for allowed paths...
+▶ Agent: [Editing src/AuthService.Tests/AuthServiceTests.cs]
+▶ Agent: Running validation: dotnet test
+  All tests passed (47 tests, 0 failures)
+▶ Agent: Updating task status to done...
+▶ Agent: Appending progress entry...
+✅ Iteration complete — 1 task done
+```
+
+### Authentication
+
+The SDK requires GitHub Copilot access via the GitHub CLI:
+
+```bash
+gh auth login          # Authenticate with GitHub
+gh auth status         # Verify authentication
+rwl doctor             # Verify SDK connectivity and tool registration
+```
+
+`rwl doctor` will show:
+
+```
+✅ SDK available and authenticated
+✅ Ping: Connected
+✅ Tools registered: 6
+✅ Hooks registered: 1
+```
+
+If authentication fails or the SDK is unavailable, `rwl` automatically falls back to process-based execution (spawning `gh copilot suggest` or the `run-loop.sh` script) — no configuration required.
+
+### Custom Agent Tools
+
+The agent can call these tools to interact with RWL state files:
+
+| Tool | Description |
+|------|-------------|
+| `read_tasks` | Returns all tasks from `TASKS.md` with their current status markers |
+| `read_progress` | Returns recent iteration entries from `PROGRESS.md` |
+| `read_config` | Returns loop configuration from `LOOP_CONFIG.md` |
+| `update_task_status` | Updates a task's status (`[ ]` → `[~]` / `[x]` / `[!]`) |
+| `append_progress` | Writes a new formatted iteration entry to `PROGRESS.md` |
+| `run_validation` | Executes the validation command from `LOOP_CONFIG.md` and returns output |
+
+Using tools (rather than dumping all state into the system prompt) is more token-efficient — the agent pulls exactly the state it needs, when it needs it.
+
+### Guardrails
+
+The SDK integration enforces guardrails via an `OnPreToolUse` hook (`GuardrailHooks`). Before any tool call is executed, the hook checks:
+
+- **Path restrictions** — operations on files outside `AllowedPaths` from `LOOP_CONFIG.md` are blocked
+- **Operation limits** — file writes per iteration are capped to `MaxFilesPerIteration`
+- **Protected patterns** — deletions of test files or bulk lint suppressions are rejected
+
+Blocked operations return an error result without executing, and the rejection is logged so the next iteration can see what was attempted.
+
+### Fallback Behavior
+
+Both `rwl run` and `rwl run-one` follow this priority:
+
+1. **SDK mode** (default) — `CopilotService.RunIterationAsync()` if SDK initializes successfully
+2. **Process fallback** — spawns `copilot --agent=ralph-wiggum-loop` or equivalent if SDK is unavailable
+3. **Script fallback** — runs `run-loop.sh` if no agent binary is found
+
+The fallback chain is automatic and transparent. Running `rwl doctor` before your first loop run is the easiest way to confirm which mode is active.
+
+---
+
 ## Quick Start
 
 ### Option A: Using the `rwl` CLI (Recommended)
