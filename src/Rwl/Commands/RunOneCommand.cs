@@ -1,12 +1,13 @@
 using System.Diagnostics;
+using Rwl.Services;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
 namespace Rwl.Commands;
 
-public sealed class RunOneCommand : Command
+public sealed class RunOneCommand : AsyncCommand
 {
-    protected override int Execute(CommandContext context, CancellationToken cancellation)
+    protected override async Task<int> ExecuteAsync(CommandContext context, CancellationToken cancellation)
     {
         if (!File.Exists("TASKS.md"))
         {
@@ -17,7 +18,27 @@ public sealed class RunOneCommand : Command
         AnsiConsole.MarkupLine("[bold]Running single iteration...[/]");
         AnsiConsole.WriteLine();
 
-        // Try copilot CLI first
+        // Try the Copilot SDK first for a native integration
+        await using var copilot = new CopilotService();
+        if (await copilot.InitializeAsync(cancellation))
+        {
+            AnsiConsole.MarkupLine("[green]✓[/] Copilot SDK connected");
+            AnsiConsole.WriteLine();
+
+            var config = ConfigParser.Parse("LOOP_CONFIG.md");
+            var success = await copilot.RunIterationAsync(
+                Directory.GetCurrentDirectory(), config, cancellation);
+
+            return success ? 0 : 1;
+        }
+
+        // Fall back to process-based approach
+        AnsiConsole.MarkupLine("[dim]Falling back to CLI-based execution...[/]");
+        return RunWithCli();
+    }
+
+    private static int RunWithCli()
+    {
         var copilotPath = FindExecutable("copilot");
         if (copilotPath is not null)
         {
@@ -26,7 +47,6 @@ public sealed class RunOneCommand : Command
                 "--prompt", "Execute one task from TASKS.md. Read TASKS.md and PROGRESS.md, find the next pending or failed task, execute it, then update both files.");
         }
 
-        // Try gh copilot
         var ghPath = FindExecutable("gh");
         if (ghPath is not null)
         {
@@ -35,7 +55,7 @@ public sealed class RunOneCommand : Command
                 "Execute one Ralph Wiggum Loop iteration: read TASKS.md, do the next pending task, update PROGRESS.md");
         }
 
-        AnsiConsole.MarkupLine("[red]✗[/] Neither 'copilot' nor 'gh copilot' found.");
+        AnsiConsole.MarkupLine("[red]✗[/] Neither Copilot SDK, 'copilot' CLI, nor 'gh copilot' found.");
         return 1;
     }
 
