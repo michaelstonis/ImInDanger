@@ -4,9 +4,9 @@ using Spectre.Console.Cli;
 
 namespace Rwl.Commands;
 
-public sealed class DoctorCommand : Command
+public sealed class DoctorCommand : AsyncCommand
 {
-    protected override int Execute(CommandContext context, CancellationToken cancellation)
+    protected override async Task<int> ExecuteAsync(CommandContext context, CancellationToken cancellation)
     {
         Banner.Show();
         AnsiConsole.MarkupLine("[bold]Doctor — Setup Verification[/]");
@@ -166,6 +166,35 @@ public sealed class DoctorCommand : Command
                 AnsiConsole.MarkupLine("  [green]✓[/] Pre-commit hook installed");
             else
                 AnsiConsole.MarkupLine("  [dim]  Pre-commit hook not installed (optional)[/]");
+        }
+
+        // ── Copilot SDK ──
+        Section("Copilot SDK");
+        try
+        {
+            await using var copilot = new CopilotService();
+            if (await copilot.InitializeAsync(cancellation))
+            {
+                AnsiConsole.MarkupLine("  [green]✓[/] Copilot SDK available and authenticated");
+                var (ok, msg) = await copilot.HealthCheckAsync(cancellation);
+                if (ok)
+                    AnsiConsole.MarkupLine($"  [green]✓[/] Ping: {msg}");
+                else
+                {
+                    AnsiConsole.MarkupLine($"  [yellow]![/] Ping failed: {Markup.Escape(msg)}");
+                    warnings++;
+                }
+            }
+            else
+            {
+                AnsiConsole.MarkupLine("  [yellow]![/] Copilot SDK not available — will use CLI fallback");
+                warnings++;
+            }
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"  [yellow]![/] Copilot SDK check failed: {Markup.Escape(ex.Message)}");
+            warnings++;
         }
 
         // ── Stale Artifacts ──

@@ -52,4 +52,4 @@ app.Configure(config =>
         .WithDescription("Run convergence and guardrail checks");
 });
 
-return app.Run(args);
+return await app.RunAsync(args);
