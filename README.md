@@ -321,7 +321,7 @@ The fallback chain is automatic and transparent. Running `rwl doctor` before you
 
 ```bash
 # Clone this repo
-git clone https://github.com/mstonis/ImInDanger.git
+git clone https://github.com/michaelstonis/ImInDanger.git
 
 # Install the CLI
 cd ImInDanger && make link
@@ -644,7 +644,7 @@ The Ralph Wiggum Loop ships as a **VS Code Copilot Plugin** that bundles all age
 
 1. Open VS Code Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`)
 2. Run: **GitHub Copilot: Install Plugin From Source**
-3. Enter: `https://github.com/mstonis/ImInDanger`
+3. Enter: `https://github.com/michaelstonis/ImInDanger`
 4. The plugin will be cloned and registered automatically
 
 **Option 2 — Local development / sideload**
