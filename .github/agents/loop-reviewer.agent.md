@@ -4,16 +4,8 @@ description: >
   Reviews Ralph Wiggum Loop progress, detects convergence issues (oscillation, stagnation,
   metric gaming), and recommends whether to continue, adjust, or stop the loop.
   Use this agent to analyze loop health and iteration history.
-tools: ["read", "search"]
-handoffs:
-  - label: "▶️ Continue Loop"
-    agent: ralph-wiggum-loop
-    prompt: "The review looks good. Please continue the Ralph Wiggum Loop — pick up the next pending task from TASKS.md and execute it."
-    send: false
-  - label: "📋 Replan Tasks"
-    agent: loop-planner
-    prompt: "The loop needs adjustment. Please review TASKS.md and PROGRESS.md and help replan or decompose the remaining work."
-    send: false
+model: GPT-5
+tools: ['codebase', 'search']
 ---
 
 # Loop Reviewer Agent

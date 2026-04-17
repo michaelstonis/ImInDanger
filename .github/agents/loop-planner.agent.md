@@ -4,12 +4,8 @@ description: >
   Plans and decomposes work into bounded, verifiable tasks for the Ralph Wiggum Loop.
   Use this agent when you need to break down a feature, refactoring, or bug fix into
   discrete loop-compatible tasks with clear success criteria.
-tools: ["read", "search", "edit", "create"]
-handoffs:
-  - label: "▶️ Start Loop"
-    agent: ralph-wiggum-loop
-    prompt: "TASKS.md has been created with the planned tasks. Please begin the Ralph Wiggum Loop — read TASKS.md and LOOP_CONFIG.md, then execute the first pending task."
-    send: false
+model: GPT-5
+tools: ['codebase', 'edit/editFiles', 'search']
 ---
 
 # Loop Planner Agent

@@ -5,7 +5,6 @@ description: >
   Use this skill when asked to execute a loop, start iterating on tasks, or run
   the ralph wiggum pattern. Provides the loop execution script and instructions
   for invoking it.
-allowed-tools: shell
 ---
 
 # Loop Runner Skill

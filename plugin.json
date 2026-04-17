@@ -16,8 +16,6 @@
     "task-management",
     "orchestration"
   ],
-  "category": "productivity",
-  "agents": ".github/agents/",
-  "skills": ".github/skills/",
-  "hooks": "hooks.json"
+  "agents": ["./.github/agents"],
+  "skills": ["./.github/skills"]
 }

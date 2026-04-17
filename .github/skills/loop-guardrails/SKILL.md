@@ -4,7 +4,6 @@ description: >
   Enforces safety guardrails for the Ralph Wiggum Loop: iteration limits, path restrictions,
   diff size limits, and validation gates. Use this skill when checking if a loop operation
   is within safety bounds or when configuring loop safety parameters.
-allowed-tools: shell
 ---
 
 # Loop Guardrails Skill
