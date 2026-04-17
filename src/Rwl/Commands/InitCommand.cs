@@ -34,6 +34,8 @@ public sealed class InitCommand : Command<InitSettings>
 
         var targetDir = Directory.GetCurrentDirectory();
         var filesCreated = 0;
+        var agentsInstalled = -1; // -1 = skipped; >=0 = attempted
+        var skillsInstalled = -1;
 
         // ── Install components ──
         AnsiConsole.Status()
@@ -43,17 +45,17 @@ public sealed class InitCommand : Command<InitSettings>
                 if (!settings.NoAgents)
                 {
                     ctx.Status("Installing agents...");
-                    var count = ComponentInstaller.InstallAgents(targetDir);
-                    filesCreated += count;
-                    AnsiConsole.MarkupLine($"  [green]✓[/] Agents: {count} installed");
+                    agentsInstalled = ComponentInstaller.InstallAgents(targetDir);
+                    filesCreated += agentsInstalled;
+                    AnsiConsole.MarkupLine($"  [green]✓[/] Agents: {agentsInstalled} installed");
                 }
 
                 if (!settings.NoSkills)
                 {
                     ctx.Status("Installing skills...");
-                    var count = ComponentInstaller.InstallSkills(targetDir);
-                    filesCreated += count;
-                    AnsiConsole.MarkupLine($"  [green]✓[/] Skills: {count} installed");
+                    skillsInstalled = ComponentInstaller.InstallSkills(targetDir);
+                    filesCreated += skillsInstalled;
+                    AnsiConsole.MarkupLine($"  [green]✓[/] Skills: {skillsInstalled} installed");
                 }
 
                 if (!settings.NoInstructions)
@@ -74,6 +76,34 @@ public sealed class InitCommand : Command<InitSettings>
             });
 
         AnsiConsole.WriteLine();
+
+        // ── Validate component installation ──
+        var installFailed = false;
+        if (agentsInstalled == 0)
+        {
+            var agentsDir = Path.Combine(targetDir, ".github", "agents");
+            if (!Directory.GetFiles(agentsDir, "*.agent.md").Any())
+            {
+                AnsiConsole.MarkupLine("[red bold]✗[/] Agent installation failed — no agent files found.");
+                AnsiConsole.MarkupLine("  [dim]Set RWL_HOME to the rwl repository root or run [bold]rwl doctor[/] for diagnostics.[/]");
+                installFailed = true;
+            }
+        }
+        if (skillsInstalled == 0)
+        {
+            var skillsDir = Path.Combine(targetDir, ".github", "skills");
+            if (!Directory.GetDirectories(skillsDir).Any())
+            {
+                AnsiConsole.MarkupLine("[red bold]✗[/] Skill installation failed — no skill directories found.");
+                AnsiConsole.MarkupLine("  [dim]Set RWL_HOME to the rwl repository root or run [bold]rwl doctor[/] for diagnostics.[/]");
+                installFailed = true;
+            }
+        }
+        if (installFailed)
+        {
+            AnsiConsole.WriteLine();
+            return 1;
+        }
 
         // ── State files ──
         AnsiConsole.MarkupLine("[bold]State Files[/]");
