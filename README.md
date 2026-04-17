@@ -421,6 +421,8 @@ bash .github/skills/loop-runner/run-loop.sh
 
 **Option B — Using Copilot CLI directly:**
 
+> **Prerequisite:** Install and authenticate Copilot CLI so the `copilot` command is available first. See the official docs: https://docs.github.com/en/copilot/how-tos/use-copilot-agents/copilot-cli
+
 ```bash
 # Single iteration
 copilot --agent=ralph-wiggum-loop
