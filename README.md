@@ -81,10 +81,11 @@
 - [Architecture](#architecture)
 - [Quick Start](#quick-start)
 - [CLI Reference (`rwl`)](#cli-reference-rwl)
-- [VS Code Agent Plugin](#vs-code-agent-plugin)
-  - [Installation](#plugin-installation)
-  - [What the Plugin Provides](#what-the-plugin-provides)
-  - [Plugin Hooks](#plugin-hooks)
+- [VS Code Agents](#vs-code-agents)
+  - [Method 1 — Open as Workspace](#method-1--open-as-workspace)
+  - [Method 2 — Copy into Your Project](#method-2--copy-into-your-project)
+  - [Method 3 — Install to User Profile](#method-3--install-to-user-profile-global)
+  - [Lifecycle Hooks](#lifecycle-hooks)
 - [Components](#components)
   - [Agents](#agents)
   - [Skills](#skills)
@@ -624,58 +625,31 @@ $ rwl doctor
 
 ---
 
-## VS Code Agent Plugin
+## VS Code Agents
 
-The Ralph Wiggum Loop ships as a **VS Code Copilot Plugin** that bundles all agents, skills, and hooks into an installable package. Once installed, the agents and skills are available directly in the Copilot Chat interface.
+The Ralph Wiggum Loop ships with **agent definitions** (`.agent.md` files) that VS Code Copilot discovers automatically. There is no "plugin install" step — VS Code loads agents directly from the filesystem.
 
-### Plugin Installation
+> **Requires:** `chat.useNestedAgentsMdFiles: true` in VS Code settings (enable in Settings → search "nested agents").
 
-**Prerequisites:**
+### Method 1 — Open as Workspace
 
-- VS Code with GitHub Copilot extension
-- Enable plugins in VS Code settings:
-
-  ```json
-  // .vscode/settings.json
-  "chat.plugins.enabled": true
-  ```
-
-**Option 1 — Install from GitHub via Copilot CLI (recommended)**
-
-```bash
-# Register the plugin marketplace (one-time, if not already registered)
-copilot plugin marketplace add michaelstonis/ImInDanger
-
-# Install the plugin
-copilot plugin install ralph-wiggum-loop@michaelstonis/ImInDanger
-```
-
-**Option 2 — Clone and sideload locally**
+The simplest approach: clone the repo and open it as your workspace. VS Code auto-loads all agents and skills from `.github/`.
 
 ```bash
 git clone https://github.com/michaelstonis/ImInDanger.git
+cd ImInDanger
+code .
 ```
 
-Then add to your VS Code settings:
+Agents appear in the `@` picker immediately:
 
-```jsonc
-// .vscode/settings.json (or User settings)
-"chat.pluginLocations": [
-  "/path/to/ImInDanger"
-]
-```
+| Agent | Invoke |
+|-------|--------|
+| `@ralph-wiggum-loop` | `@ralph-wiggum-loop run one iteration` |
+| `@loop-planner` | `@loop-planner break down my tasks` |
+| `@loop-reviewer` | `@loop-reviewer check loop health` |
 
-### What the Plugin Provides
-
-| Component | Invoke |
-|-----------|--------|
-| `@ralph-wiggum-loop` agent | `@ralph-wiggum-loop run one iteration` |
-| `@loop-planner` agent | `@loop-planner break down my tasks` |
-| `@loop-reviewer` agent | `@loop-reviewer check loop health` |
-| `loop-runner` skill | `/loop-runner` |
-| `task-state-manager` skill | `/task-state-manager` |
-| `convergence-detector` skill | `/convergence-detector` |
-| `loop-guardrails` skill | `/loop-guardrails` |
+Skills appear as slash commands: `/loop-runner`, `/task-state-manager`, `/convergence-detector`, `/loop-guardrails`.
 
 #### Agent Handoffs
 
@@ -685,24 +659,69 @@ Agents wire together with one-click handoffs:
 - **`@ralph-wiggum-loop`** → after executing, offers "🔍 Review Loop Health" → hands off to `@loop-reviewer`
 - **`@loop-reviewer`** → after reviewing, offers "▶️ Continue Loop" or "📋 Replan Tasks"
 
-### Plugin Hooks
+### Method 2 — Copy into Your Project
 
-The plugin installs two VS Code lifecycle hooks automatically:
+To use the agents and skills within your own project:
 
-| Hook | Trigger | Effect |
+```bash
+# From the ImInDanger repo root
+cp -r .github/agents   /your/project/.github/
+cp -r .github/skills   /your/project/.github/
+cp -r .github/hooks    /your/project/.github/
+```
+
+Open your project in VS Code — agents and skills are workspace-scoped to your project.
+
+### Method 3 — Install to User Profile (Global)
+
+Copy `.agent.md` files to your VS Code profile's `agents/` directory to make them available in **all** workspaces.
+
+**macOS:**
+```bash
+# VS Code Agents - Insiders build
+PROFILE_AGENTS="$HOME/Library/Application Support/Agents - Insiders/User/agents"
+# VS Code Insiders: "$HOME/Library/Application Support/Code - Insiders/User/agents"
+# VS Code Stable:   "$HOME/Library/Application Support/Code/User/agents"
+
+mkdir -p "$PROFILE_AGENTS"
+cp /path/to/ImInDanger/.github/agents/*.agent.md "$PROFILE_AGENTS/"
+```
+
+**Linux:**
+```bash
+PROFILE_AGENTS="$HOME/.config/Code/User/agents"
+mkdir -p "$PROFILE_AGENTS"
+cp /path/to/ImInDanger/.github/agents/*.agent.md "$PROFILE_AGENTS/"
+```
+
+**Windows (PowerShell):**
+```powershell
+$ProfileAgents = "$env:APPDATA\Code\User\agents"
+New-Item -ItemType Directory -Force -Path $ProfileAgents
+Copy-Item "path\to\ImInDanger\.github\agents\*.agent.md" -Destination $ProfileAgents
+```
+
+To also install skills globally, copy to `~/.copilot/skills/`:
+
+```bash
+mkdir -p "$HOME/.copilot/skills"
+cp -r /path/to/ImInDanger/.github/skills/* "$HOME/.copilot/skills/"
+```
+
+### Lifecycle Hooks
+
+Lifecycle hooks live at `.github/hooks/hooks.json` and run shell scripts at key agent events:
+
+| Hook | Trigger | Script |
 |------|---------|--------|
-| `session-start.sh` | Start of every Copilot session | Injects TASKS.md/PROGRESS.md state summary as context |
-| `session-stop.sh` | End of every Copilot session | Warns if tasks are still `[~]` in-progress |
+| `SessionStart` | First prompt of a new session | `hooks/session-start.sh` — injects TASKS.md/PROGRESS.md summary |
+| `Stop` | Agent session ends | `hooks/session-stop.sh` — warns if tasks are still in-progress |
 
-**Session Start Output Example:**
+Hooks only fire when the workspace containing `.github/hooks/hooks.json` is open. Example output from `session-start.sh`:
 
 ```
 🔄 Ralph Wiggum Loop — 4/7 tasks done, 1 in-progress, 2 pending. Last recorded: ## Iteration 5 — 2025-01-15T10:30:00Z.
 ```
-
-This message is injected as a system-level context message so the agent always starts with situational awareness.
-
-**Plugin Manifest:** `plugin.json` (root) — also mirrored at `.github/plugin/plugin.json`
 
 ---
 
