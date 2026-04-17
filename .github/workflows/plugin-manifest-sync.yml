@@ -1,0 +1,25 @@
+name: Plugin Manifest Sync Check
+
+on:
+  pull_request:
+    paths:
+      - "plugin.json"
+      - ".github/plugin/plugin.json"
+      - ".github/workflows/plugin-manifest-sync.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "plugin.json"
+      - ".github/plugin/plugin.json"
+      - ".github/workflows/plugin-manifest-sync.yml"
+
+jobs:
+  manifests-match:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify plugin manifests are identical
+        run: diff -u plugin.json .github/plugin/plugin.json
