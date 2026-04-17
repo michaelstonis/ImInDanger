@@ -45,7 +45,7 @@ public static class ComponentInstaller
             }
             else
             {
-                // Try embedded resource
+                // Fall back to embedded resource (available in distributed binary)
                 var content = ResourceLoader.LoadTemplate($"agents.{agent}");
                 if (content is not null)
                 {
@@ -54,7 +54,8 @@ public static class ComponentInstaller
                 }
                 else
                 {
-                    AnsiConsole.MarkupLine($"  [red]✗[/] {agent} [dim]— source not found[/]");
+                    AnsiConsole.MarkupLine($"  [red]✗[/] {agent} [dim]— not found[/]");
+                    AnsiConsole.MarkupLine($"    [dim]Set RWL_HOME to the rwl repository root and retry.[/]");
                 }
             }
         }
@@ -76,22 +77,55 @@ public static class ComponentInstaller
             var destDir = Path.Combine(skillsDir, skill);
             Directory.CreateDirectory(destDir);
 
-            if (!Directory.Exists(sourceDir))
+            if (Directory.Exists(sourceDir))
             {
-                AnsiConsole.MarkupLine($"  [yellow]![/] {skill} [dim]— source dir not found[/]");
-                continue;
-            }
-
-            foreach (var file in Directory.GetFiles(sourceDir))
-            {
-                var destFile = Path.Combine(destDir, Path.GetFileName(file));
-                if (File.Exists(destFile))
+                foreach (var file in Directory.GetFiles(sourceDir))
                 {
-                    AnsiConsole.MarkupLine($"  [dim]skip[/] {skill}/{Path.GetFileName(file)} [dim](exists)[/]");
-                    continue;
+                    var filename = Path.GetFileName(file);
+                    var destFile = Path.Combine(destDir, filename);
+                    if (File.Exists(destFile))
+                    {
+                        AnsiConsole.MarkupLine($"  [dim]skip[/] {skill}/{filename} [dim](exists)[/]");
+                        continue;
+                    }
+                    File.Copy(file, destFile);
+                    MakeExecutableIfScript(destFile);
+                    count++;
                 }
-                File.Copy(file, destFile);
-                count++;
+            }
+            else
+            {
+                // Fall back to embedded resources (available in distributed binary)
+                var prefix = $"skills.{skill}.";
+                var embedded = ResourceLoader.ListTemplates()
+                    .Where(n => n.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                if (embedded.Count > 0)
+                {
+                    foreach (var resourceName in embedded)
+                    {
+                        var filename = resourceName[prefix.Length..];
+                        var destFile = Path.Combine(destDir, filename);
+                        if (File.Exists(destFile))
+                        {
+                            AnsiConsole.MarkupLine($"  [dim]skip[/] {skill}/{filename} [dim](exists)[/]");
+                            continue;
+                        }
+                        var content = ResourceLoader.LoadTemplate(resourceName);
+                        if (content is not null)
+                        {
+                            File.WriteAllText(destFile, content);
+                            MakeExecutableIfScript(destFile);
+                            count++;
+                        }
+                    }
+                }
+                else
+                {
+                    AnsiConsole.MarkupLine($"  [red]✗[/] {skill} [dim]— not found[/]");
+                    AnsiConsole.MarkupLine($"    [dim]Set RWL_HOME to the rwl repository root and retry.[/]");
+                }
             }
         }
 
@@ -116,6 +150,15 @@ public static class ComponentInstaller
                 File.Copy(source, copilotInstr);
                 count++;
             }
+            else
+            {
+                var content = ResourceLoader.LoadTemplate("copilot-instructions.md");
+                if (content is not null)
+                {
+                    File.WriteAllText(copilotInstr, content);
+                    count++;
+                }
+            }
         }
 
         // Path-specific instructions
@@ -133,6 +176,24 @@ public static class ComponentInstaller
                 count++;
             }
         }
+        else
+        {
+            // Fall back to embedded resources
+            foreach (var resourceName in ResourceLoader.ListTemplates()
+                         .Where(n => n.StartsWith("instructions.", StringComparison.OrdinalIgnoreCase)
+                                     && n.EndsWith(".instructions.md", StringComparison.OrdinalIgnoreCase)))
+            {
+                var filename = resourceName["instructions.".Length..];
+                var dest = Path.Combine(instrDir, filename);
+                if (File.Exists(dest)) continue;
+                var content = ResourceLoader.LoadTemplate(resourceName);
+                if (content is not null)
+                {
+                    File.WriteAllText(dest, content);
+                    count++;
+                }
+            }
+        }
 
         // AGENTS.md at project root
         var agentsMd = Path.Combine(targetDir, "AGENTS.md");
@@ -144,6 +205,15 @@ public static class ComponentInstaller
                 File.Copy(source, agentsMd);
                 count++;
             }
+            else
+            {
+                var content = ResourceLoader.LoadTemplate("AGENTS.md");
+                if (content is not null)
+                {
+                    File.WriteAllText(agentsMd, content);
+                    count++;
+                }
+            }
         }
 
         return count;
@@ -154,7 +224,6 @@ public static class ComponentInstaller
         var count = 0;
         var rwlHome = RwlHome.Resolve();
 
-        // Check for git
         var gitDir = Path.Combine(targetDir, ".git");
         if (!Directory.Exists(gitDir))
             return 0;
@@ -173,7 +242,6 @@ public static class ComponentInstaller
             if (!File.Exists(dest) || !File.ReadAllText(dest).Contains("Ralph Wiggum", StringComparison.Ordinal))
             {
                 File.Copy(preCommit, dest, overwrite: true);
-                // Make executable on Unix
                 if (!OperatingSystem.IsWindows())
                 {
                     System.Diagnostics.Process.Start("chmod", ["+x", dest])?.WaitForExit();
@@ -183,5 +251,13 @@ public static class ComponentInstaller
         }
 
         return count;
+    }
+
+    private static void MakeExecutableIfScript(string path)
+    {
+        if (!OperatingSystem.IsWindows() && path.EndsWith(".sh", StringComparison.OrdinalIgnoreCase))
+        {
+            System.Diagnostics.Process.Start("chmod", ["+x", path])?.WaitForExit();
+        }
     }
 }

@@ -1,21 +1,49 @@
-.PHONY: build publish pack install install-tool uninstall link help test clean
+.PHONY: build publish publish-all pack install install-tool uninstall link sync-resources help test clean
 
 PREFIX ?= /usr/local
 RID ?= $(shell dotnet --info 2>/dev/null | grep 'RID:' | awk '{print $$2}' || echo "osx-arm64")
 
+# All supported target platforms for cross-platform release builds
+RELEASE_RIDS = linux-x64 linux-arm64 osx-arm64 osx-x64 win-x64
+
 help: ## Show this help
 	@echo "Ralph Wiggum Loop — Makefile"
 	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 
 build: ## Build the .NET CLI (debug)
 	@cd src/Rwl && dotnet build -q
 
+sync-resources: ## Sync .github assets into embedded resources (done automatically by dotnet build)
+	@echo "Syncing .github assets into src/Rwl/Resources/Templates/..."
+	@mkdir -p src/Rwl/Resources/Templates/agents
+	@mkdir -p src/Rwl/Resources/Templates/skills
+	@mkdir -p src/Rwl/Resources/Templates/instructions
+	@cp .github/agents/*.agent.md src/Rwl/Resources/Templates/agents/ 2>/dev/null || true
+	@for skill in loop-runner task-state-manager convergence-detector loop-guardrails; do \
+	  mkdir -p src/Rwl/Resources/Templates/skills/$$skill; \
+	  cp -r .github/skills/$$skill/. src/Rwl/Resources/Templates/skills/$$skill/; \
+	done
+	@cp .github/instructions/*.instructions.md src/Rwl/Resources/Templates/instructions/ 2>/dev/null || true
+	@cp .github/copilot-instructions.md src/Rwl/Resources/Templates/ 2>/dev/null || true
+	@cp AGENTS.md src/Rwl/Resources/Templates/ 2>/dev/null || true
+	@echo "✅ Resources synced."
+
 publish: ## Publish self-contained single-file binary for current platform
 	@echo "Publishing for $(RID)..."
 	@cd src/Rwl && dotnet publish -c Release -r $(RID) --self-contained -q
 	@echo "✅ Binary: src/Rwl/bin/Release/net10.0/$(RID)/publish/rwl"
+
+publish-all: ## Build self-contained native binaries for all platforms (requires cross-compilation support)
+	@echo "Building for all platforms: $(RELEASE_RIDS)"
+	@for rid in $(RELEASE_RIDS); do \
+	  echo "  Publishing $$rid..."; \
+	  (cd src/Rwl && dotnet publish -c Release -r $$rid --self-contained -q); \
+	  echo "  ✅ $$rid done"; \
+	done
+	@echo ""
+	@echo "✅ All platform binaries built in src/Rwl/bin/Release/net10.0/*/publish/"
 
 pack: ## Create NuGet tool package (.nupkg)
 	@cd src/Rwl && dotnet pack -c Release -q
@@ -59,4 +87,9 @@ test: build ## Run basic CLI smoke tests
 clean: ## Clean build artifacts
 	@cd src/Rwl && dotnet clean -q
 	@rm -f src/Rwl/bin/Release/*.nupkg
+	@rm -rf src/Rwl/Resources/Templates/agents \
+	         src/Rwl/Resources/Templates/skills \
+	         src/Rwl/Resources/Templates/instructions \
+	         src/Rwl/Resources/Templates/copilot-instructions.md \
+	         src/Rwl/Resources/Templates/AGENTS.md
 	@echo "✅ Cleaned."

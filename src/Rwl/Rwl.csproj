@@ -37,10 +37,69 @@
     <PackageReference Include="Spectre.Console.Cli" Version="0.55.0" />
   </ItemGroup>
 
-  <!-- Embed templates as resources -->
+  <!-- Embed templates as resources (statically known files in Resources/Templates/) -->
   <ItemGroup>
     <EmbeddedResource Include="Resources\Templates\**\*" />
   </ItemGroup>
+
+  <!--
+    Copy .github agent/skill/instruction files into Resources/Templates/ before compile so they
+    are embedded in the binary. This makes rwl self-contained — no RWL_HOME needed at runtime.
+    The copied files are git-ignored; they are regenerated on every build from canonical sources.
+  -->
+  <Target Name="EmbedGitHubAssets" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <_RwlRoot>$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine($(MSBuildProjectDirectory), '..', '..'))))</_RwlRoot>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <_AgentFiles Include="$(_RwlRoot)/.github/agents/*.agent.md" />
+      <_SkillFiles Include="$(_RwlRoot)/.github/skills/**/*" />
+      <_InstrFiles Include="$(_RwlRoot)/.github/instructions/*.instructions.md" />
+    </ItemGroup>
+
+    <!-- Agents -->
+    <MakeDir Directories="$(MSBuildProjectDirectory)/Resources/Templates/agents"
+             Condition="'@(_AgentFiles)' != ''" />
+    <Copy SourceFiles="@(_AgentFiles)"
+          DestinationFolder="$(MSBuildProjectDirectory)/Resources/Templates/agents"
+          SkipUnchangedFiles="true" />
+
+    <!-- Skills (preserve skill subdirectory structure) -->
+    <MakeDir Directories="@(_SkillFiles->'$(MSBuildProjectDirectory)/Resources/Templates/skills/%(RecursiveDir)')"
+             Condition="'@(_SkillFiles)' != ''" />
+    <Copy SourceFiles="@(_SkillFiles)"
+          DestinationFiles="@(_SkillFiles->'$(MSBuildProjectDirectory)/Resources/Templates/skills/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+
+    <!-- Instructions -->
+    <MakeDir Directories="$(MSBuildProjectDirectory)/Resources/Templates/instructions"
+             Condition="'@(_InstrFiles)' != ''" />
+    <Copy SourceFiles="@(_InstrFiles)"
+          DestinationFolder="$(MSBuildProjectDirectory)/Resources/Templates/instructions"
+          SkipUnchangedFiles="true" />
+
+    <!-- Top-level context files -->
+    <Copy SourceFiles="$(_RwlRoot)/.github/copilot-instructions.md"
+          DestinationFolder="$(MSBuildProjectDirectory)/Resources/Templates"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(_RwlRoot)/.github/copilot-instructions.md')" />
+    <Copy SourceFiles="$(_RwlRoot)/AGENTS.md"
+          DestinationFolder="$(MSBuildProjectDirectory)/Resources/Templates"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(_RwlRoot)/AGENTS.md')" />
+
+    <!-- Add the newly copied files as embedded resources for this compilation -->
+    <ItemGroup>
+      <EmbeddedResource Include="$(MSBuildProjectDirectory)/Resources/Templates/agents/*.agent.md" />
+      <EmbeddedResource Include="$(MSBuildProjectDirectory)/Resources/Templates/skills/**/*" />
+      <EmbeddedResource Include="$(MSBuildProjectDirectory)/Resources/Templates/instructions/*.instructions.md" />
+      <EmbeddedResource Include="$(MSBuildProjectDirectory)/Resources/Templates/copilot-instructions.md"
+                        Condition="Exists('$(MSBuildProjectDirectory)/Resources/Templates/copilot-instructions.md')" />
+      <EmbeddedResource Include="$(MSBuildProjectDirectory)/Resources/Templates/AGENTS.md"
+                        Condition="Exists('$(MSBuildProjectDirectory)/Resources/Templates/AGENTS.md')" />
+    </ItemGroup>
+  </Target>
 
   <!-- NuGet package content -->
   <ItemGroup>

@@ -168,6 +168,41 @@ public sealed class DoctorCommand : AsyncCommand
                 AnsiConsole.MarkupLine("  [dim]  Pre-commit hook not installed (optional)[/]");
         }
 
+        // ── Environment ──
+        Section("Environment");
+
+        var rwlHomeEnv = Environment.GetEnvironmentVariable("RWL_HOME");
+        if (!string.IsNullOrEmpty(rwlHomeEnv))
+        {
+            if (Directory.Exists(rwlHomeEnv))
+                AnsiConsole.MarkupLine($"  [green]✓[/] RWL_HOME = {Markup.Escape(rwlHomeEnv)}");
+            else
+            {
+                AnsiConsole.MarkupLine($"  [red]✗[/] RWL_HOME = {Markup.Escape(rwlHomeEnv)} [dim](directory not found)[/]");
+                issues++;
+            }
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("  [dim]  RWL_HOME not set — embedded components will be used[/]");
+        }
+
+        var resolvedHome = RwlHome.Resolve();
+        var agentMarker = Path.Combine(resolvedHome, ".github", "agents", "ralph-wiggum-loop.agent.md");
+        if (File.Exists(agentMarker))
+            AnsiConsole.MarkupLine($"  [green]✓[/] Component source: {Markup.Escape(resolvedHome)}");
+        else
+            AnsiConsole.MarkupLine("  [dim]  No source tree found — using embedded components[/]");
+
+        if (FindInPath("copilot") is string copilotPath)
+            AnsiConsole.MarkupLine($"  [green]✓[/] copilot CLI: {Markup.Escape(copilotPath)}");
+        else
+        {
+            AnsiConsole.MarkupLine("  [yellow]![/] copilot CLI not found in PATH — required for the loop shell script");
+            AnsiConsole.MarkupLine("  [dim]  Install: gh extension install github/gh-copilot[/]");
+            warnings++;
+        }
+
         // ── Copilot SDK ──
         Section("Copilot SDK");
         try
@@ -233,5 +268,25 @@ public sealed class DoctorCommand : AsyncCommand
     {
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine($"[bold underline]{title}[/]");
+    }
+
+    private static string? FindInPath(string executable)
+    {
+        var pathVar = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+        var sep = OperatingSystem.IsWindows() ? ';' : ':';
+        var extensions = OperatingSystem.IsWindows()
+            ? (Environment.GetEnvironmentVariable("PATHEXT") ?? ".EXE;.CMD;.BAT").Split(';')
+            : [string.Empty];
+
+        foreach (var dir in pathVar.Split(sep, StringSplitOptions.RemoveEmptyEntries))
+        {
+            foreach (var ext in extensions)
+            {
+                var candidate = Path.Combine(dir, executable + ext);
+                if (File.Exists(candidate))
+                    return candidate;
+            }
+        }
+        return null;
     }
 }

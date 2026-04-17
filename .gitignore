@@ -24,3 +24,11 @@ Thumbs.db
 .vscode/settings.json
 
 src/Rwl/Rwl.csproj.lscache
+plugin-manifest-sync.yml
+
+# Generated embedded resources (copied from .github/ at build time; do not commit)
+src/Rwl/Resources/Templates/agents/
+src/Rwl/Resources/Templates/skills/
+src/Rwl/Resources/Templates/instructions/
+src/Rwl/Resources/Templates/copilot-instructions.md
+src/Rwl/Resources/Templates/AGENTS.md
