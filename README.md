@@ -640,26 +640,29 @@ The Ralph Wiggum Loop ships as a **VS Code Copilot Plugin** that bundles all age
   "chat.plugins.enabled": true
   ```
 
-**Option 1 — Install via Git URL (recommended)**
+**Option 1 — Install from GitHub via Copilot CLI (recommended)**
 
-1. Open VS Code Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`)
-2. Run: **GitHub Copilot: Install Plugin From Source**
-3. Enter: `https://github.com/michaelstonis/ImInDanger`
-4. The plugin will be cloned and registered automatically
+```bash
+# Register the plugin marketplace (one-time, if not already registered)
+copilot plugin marketplace add michaelstonis/ImInDanger
 
-**Option 2 — Local development / sideload**
+# Install the plugin
+copilot plugin install ralph-wiggum-loop@michaelstonis/ImInDanger
+```
+
+**Option 2 — Clone and sideload locally**
+
+```bash
+git clone https://github.com/michaelstonis/ImInDanger.git
+```
+
+Then add to your VS Code settings:
 
 ```jsonc
 // .vscode/settings.json (or User settings)
 "chat.pluginLocations": [
   "/path/to/ImInDanger"
 ]
-```
-
-**Option 3 — Marketplace (github/awesome-copilot)**
-
-```bash
-copilot plugin install ralph-wiggum-loop@awesome-copilot
 ```
 
 ### What the Plugin Provides
