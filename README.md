@@ -702,7 +702,7 @@ The plugin installs two VS Code lifecycle hooks automatically:
 
 This message is injected as a system-level context message so the agent always starts with situational awareness.
 
-**Plugin Manifest:** `.github/plugin/plugin.json`
+**Plugin Manifest:** `plugin.json` (root) — also mirrored at `.github/plugin/plugin.json`
 
 ---
 
