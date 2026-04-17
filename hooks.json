@@ -1,17 +1,20 @@
 {
+  "version": 1,
   "hooks": {
-    "SessionStart": [
+    "sessionStart": [
       {
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh",
-        "timeout": 10
+        "bash": "hooks/session-start.sh",
+        "cwd": ".",
+        "timeoutSec": 10
       }
     ],
-    "Stop": [
+    "sessionEnd": [
       {
         "type": "command",
-        "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-stop.sh",
-        "timeout": 5
+        "bash": "hooks/session-stop.sh",
+        "cwd": ".",
+        "timeoutSec": 5
       }
     ]
   }

@@ -1,14 +1,12 @@
 {
-  "$schema": "https://raw.githubusercontent.com/microsoft/vscode/main/extensions/github-copilot/schemas/plugin.schema.json",
   "name": "ralph-wiggum-loop",
-  "displayName": "Ralph Wiggum Loop",
   "description": "Iterative fresh-context agent loop pattern for complex multi-step coding tasks. Provides agents, skills, and hooks for orchestrating, planning, reviewing, and guarding the Ralph Wiggum Loop.",
   "version": "1.0.0",
-  "publisher": "michaelstonis",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/michaelstonis/ImInDanger"
+  "author": {
+    "name": "Michael Stonis",
+    "url": "https://github.com/michaelstonis"
   },
+  "repository": "https://github.com/michaelstonis/ImInDanger",
   "license": "MIT",
   "keywords": [
     "loop",
@@ -19,18 +17,7 @@
     "orchestration"
   ],
   "category": "productivity",
-  "agents": [
-    ".github/agents/ralph-wiggum-loop.agent.md",
-    ".github/agents/loop-planner.agent.md",
-    ".github/agents/loop-reviewer.agent.md"
-  ],
-  "instructions": [
-    ".github/copilot-instructions.md"
-  ],
-  "prompts": [
-    ".github/skills/loop-runner/SKILL.md",
-    ".github/skills/task-state-manager/SKILL.md",
-    ".github/skills/convergence-detector/SKILL.md",
-    ".github/skills/loop-guardrails/SKILL.md"
-  ]
+  "agents": ".github/agents/",
+  "skills": ".github/skills/",
+  "hooks": "hooks.json"
 }
