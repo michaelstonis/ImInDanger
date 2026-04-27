@@ -80,7 +80,6 @@ jobs:
           -r ${{ matrix.rid }}
           --self-contained
           -o dist/${{ matrix.rid }}
-          -q
           --no-restore
 
       - name: Create archive (Unix)
@@ -162,7 +161,6 @@ jobs:
             -c Release \
             -p:Version=${{ steps.version.outputs.VERSION }} \
             -o nupkg \
-            -q \
             --no-restore
 
       - name: Push to NuGet.org
