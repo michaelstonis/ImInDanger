@@ -64,7 +64,9 @@ jobs:
           NUGET_HOME="${NUGET_PACKAGES:-$HOME/.nuget/packages}"
           PROPS=$(find "$NUGET_HOME/github.copilot.sdk" -name "GitHub.Copilot.SDK.props" | sort | tail -1)
           VER=$(python3 -c "import re; c=open('$PROPS').read(); print(re.search(r'<CopilotCliVersion>([^<]+)', c).group(1))")
-          DIR="src/Rwl/obj/Release/net10.0/copilot-cli/$VER/${{ matrix.copilot_platform }}"
+          # dotnet publish -r $RID inserts the RID into IntermediateOutputPath:
+          # obj/Release/net10.0/$RID/copilot-cli/...
+          DIR="src/Rwl/obj/Release/net10.0/${{ matrix.rid }}/copilot-cli/$VER/${{ matrix.copilot_platform }}"
           mkdir -p "$DIR"
           curl -fsSL "https://registry.npmjs.org/@github/copilot-${{ matrix.copilot_platform }}/-/copilot-${{ matrix.copilot_platform }}-$VER.tgz" \
             | tar -xzf - --strip-components=1 -C "$DIR"
