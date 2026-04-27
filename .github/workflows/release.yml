@@ -61,9 +61,21 @@ jobs:
       - name: Pre-stage Copilot CLI binary
         shell: bash
         run: |
-          NUGET_HOME="${NUGET_PACKAGES:-$HOME/.nuget/packages}"
-          PROPS=$(find "$NUGET_HOME/github.copilot.sdk" -name "GitHub.Copilot.SDK.props" | sort | tail -1)
-          VER=$(python3 -c "import re; c=open('$PROPS').read(); print(re.search(r'<CopilotCliVersion>([^<]+)', c).group(1))")
+          # dotnet nuget locals gives the correct path on all platforms.
+          # On Windows Git Bash, NUGET_PACKAGES is a Windows-style path (C:\...) which
+          # breaks bash find; dotnet nuget locals outputs it in native form, so we
+          # normalize: backslashes → slashes, C:/ → /C/ for POSIX compatibility.
+          RAW=$(dotnet nuget locals global-packages --list | sed 's/^.*global-packages: //' | tr -d '\r\n')
+          NUGET_HOME=$(echo "$RAW" | tr '\\' '/' | sed 's|^\([A-Za-z]\):/|/\1/|' | sed 's|/$||')
+          PROPS=$(find "$NUGET_HOME/github.copilot.sdk" -name "GitHub.Copilot.SDK.props" 2>/dev/null | sort | tail -1)
+          if [ -z "$PROPS" ]; then
+            echo "❌ GitHub.Copilot.SDK.props not found under $NUGET_HOME" >&2; exit 1
+          fi
+          # Use sed (not python3) — python3 cannot open POSIX paths on Windows Git Bash
+          VER=$(sed -n 's/.*<CopilotCliVersion>\([^<]*\)<.*/\1/p' "$PROPS" | tr -d '[:space:]\r')
+          if [ -z "$VER" ]; then
+            echo "❌ Could not parse CopilotCliVersion from $PROPS" >&2; exit 1
+          fi
           # dotnet publish -r $RID inserts the RID into IntermediateOutputPath:
           # obj/Release/net10.0/$RID/copilot-cli/...
           DIR="src/Rwl/obj/Release/net10.0/${{ matrix.rid }}/copilot-cli/$VER/${{ matrix.copilot_platform }}"
@@ -145,9 +157,16 @@ jobs:
 
       - name: Pre-stage Copilot CLI binary (linux-x64)
         run: |
-          NUGET_HOME="${NUGET_PACKAGES:-$HOME/.nuget/packages}"
-          PROPS=$(find "$NUGET_HOME/github.copilot.sdk" -name "GitHub.Copilot.SDK.props" | sort | tail -1)
-          VER=$(python3 -c "import re; c=open('$PROPS').read(); print(re.search(r'<CopilotCliVersion>([^<]+)', c).group(1))")
+          RAW=$(dotnet nuget locals global-packages --list | sed 's/^.*global-packages: //' | tr -d '\r\n')
+          NUGET_HOME=$(echo "$RAW" | tr '\\' '/' | sed 's|^\([A-Za-z]\):/|/\1/|' | sed 's|/$||')
+          PROPS=$(find "$NUGET_HOME/github.copilot.sdk" -name "GitHub.Copilot.SDK.props" 2>/dev/null | sort | tail -1)
+          if [ -z "$PROPS" ]; then
+            echo "❌ GitHub.Copilot.SDK.props not found under $NUGET_HOME" >&2; exit 1
+          fi
+          VER=$(sed -n 's/.*<CopilotCliVersion>\([^<]*\)<.*/\1/p' "$PROPS" | tr -d '[:space:]\r')
+          if [ -z "$VER" ]; then
+            echo "❌ Could not parse CopilotCliVersion from $PROPS" >&2; exit 1
+          fi
           DIR="src/Rwl/obj/Release/net10.0/copilot-cli/$VER/linux-x64"
           mkdir -p "$DIR"
           curl -fsSL "https://registry.npmjs.org/@github/copilot-linux-x64/-/copilot-linux-x64-$VER.tgz" \
