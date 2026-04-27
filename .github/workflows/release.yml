@@ -91,3 +91,33 @@ jobs:
             --generate-notes \
             --repo "${{ github.repository }}" \
             artifacts/*
+
+  nuget-publish:
+    name: Publish to NuGet
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Pack
+        run: |
+          dotnet pack src/Rwl/Rwl.csproj \
+            -c Release \
+            -p:Version=${{ steps.version.outputs.VERSION }} \
+            -o nupkg \
+            -q
+
+      - name: Push to NuGet.org
+        run: |
+          dotnet nuget push nupkg/*.nupkg \
+            --source https://api.nuget.org/v3/index.json \
+            --api-key ${{ secrets.NUGET_API_KEY }} \
+            --skip-duplicate

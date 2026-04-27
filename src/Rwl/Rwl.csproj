@@ -18,8 +18,8 @@
     <Authors>mstonis</Authors>
     <Description>Ralph Wiggum Loop — iterative fresh-context agent loop CLI for GitHub Copilot</Description>
     <PackageTags>copilot;agent;loop;cli;ai;ralph-wiggum-loop;vscode</PackageTags>
-    <PackageProjectUrl>https://github.com/mstonis/ImInDanger</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/mstonis/ImInDanger</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/michaelstonis/ImInDanger</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/michaelstonis/ImInDanger</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
