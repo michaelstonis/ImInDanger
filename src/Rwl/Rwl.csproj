@@ -46,36 +46,48 @@
     Copy .github agent/skill/instruction files into Resources/Templates/ before compile so they
     are embedded in the binary. This makes rwl self-contained — no RWL_HOME needed at runtime.
     The copied files are git-ignored; they are regenerated on every build from canonical sources.
-  -->
-  <Target Name="EmbedGitHubAssets" BeforeTargets="CoreCompile">
-    <PropertyGroup>
-      <_RwlRoot>$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine($(MSBuildProjectDirectory), '..', '..'))))</_RwlRoot>
-    </PropertyGroup>
 
-    <ItemGroup>
-      <_AgentFiles Include="$(_RwlRoot)/.github/agents/*.agent.md" />
-      <_SkillFiles Include="$(_RwlRoot)/.github/skills/**/*" />
-      <_InstrFiles Include="$(_RwlRoot)/.github/instructions/*.instructions.md" />
-    </ItemGroup>
+    Items and Inputs/Outputs are declared at project-load scope (outside the Target) so MSBuild
+    can evaluate them for the incremental check.  A sentinel file is used as the single Output so
+    the target is skipped on repeat builds when source files have not changed.  This also prevents
+    the .NET 10 BuildCheck "running completely" error that occurs when a target has no declared
+    Outputs and therefore always runs unconditionally.
+  -->
+  <PropertyGroup>
+    <_RwlRoot>$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine($(MSBuildProjectDirectory), '..', '..'))))</_RwlRoot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <_EmbedAgentFiles Include="$(_RwlRoot)/.github/agents/*.agent.md" />
+    <_EmbedSkillFiles Include="$(_RwlRoot)/.github/skills/**/*.md;$(_RwlRoot)/.github/skills/**/*.sh" />
+    <_EmbedInstrFiles Include="$(_RwlRoot)/.github/instructions/*.instructions.md" />
+    <_EmbedExtraFiles Include="$(_RwlRoot)/.github/copilot-instructions.md" Condition="Exists('$(_RwlRoot)/.github/copilot-instructions.md')" />
+    <_EmbedExtraFiles Include="$(_RwlRoot)/AGENTS.md" Condition="Exists('$(_RwlRoot)/AGENTS.md')" />
+    <_EmbedAllFiles Include="@(_EmbedAgentFiles);@(_EmbedSkillFiles);@(_EmbedInstrFiles);@(_EmbedExtraFiles)" />
+  </ItemGroup>
+
+  <Target Name="EmbedGitHubAssets" BeforeTargets="CoreCompile"
+          Inputs="@(_EmbedAllFiles)"
+          Outputs="$(BaseIntermediateOutputPath)EmbedGitHubAssets.sentinel">
 
     <!-- Agents -->
     <MakeDir Directories="$(MSBuildProjectDirectory)/Resources/Templates/agents"
-             Condition="'@(_AgentFiles)' != ''" />
-    <Copy SourceFiles="@(_AgentFiles)"
+             Condition="'@(_EmbedAgentFiles)' != ''" />
+    <Copy SourceFiles="@(_EmbedAgentFiles)"
           DestinationFolder="$(MSBuildProjectDirectory)/Resources/Templates/agents"
           SkipUnchangedFiles="true" />
 
     <!-- Skills (preserve skill subdirectory structure) -->
-    <MakeDir Directories="@(_SkillFiles->'$(MSBuildProjectDirectory)/Resources/Templates/skills/%(RecursiveDir)')"
-             Condition="'@(_SkillFiles)' != ''" />
-    <Copy SourceFiles="@(_SkillFiles)"
-          DestinationFiles="@(_SkillFiles->'$(MSBuildProjectDirectory)/Resources/Templates/skills/%(RecursiveDir)%(Filename)%(Extension)')"
+    <MakeDir Directories="@(_EmbedSkillFiles->'$(MSBuildProjectDirectory)/Resources/Templates/skills/%(RecursiveDir)')"
+             Condition="'@(_EmbedSkillFiles)' != ''" />
+    <Copy SourceFiles="@(_EmbedSkillFiles)"
+          DestinationFiles="@(_EmbedSkillFiles->'$(MSBuildProjectDirectory)/Resources/Templates/skills/%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
 
     <!-- Instructions -->
     <MakeDir Directories="$(MSBuildProjectDirectory)/Resources/Templates/instructions"
-             Condition="'@(_InstrFiles)' != ''" />
-    <Copy SourceFiles="@(_InstrFiles)"
+             Condition="'@(_EmbedInstrFiles)' != ''" />
+    <Copy SourceFiles="@(_EmbedInstrFiles)"
           DestinationFolder="$(MSBuildProjectDirectory)/Resources/Templates/instructions"
           SkipUnchangedFiles="true" />
 
@@ -99,6 +111,10 @@
       <EmbeddedResource Include="$(MSBuildProjectDirectory)/Resources/Templates/AGENTS.md"
                         Condition="Exists('$(MSBuildProjectDirectory)/Resources/Templates/AGENTS.md')" />
     </ItemGroup>
+
+    <!-- Touch sentinel so MSBuild knows the target is up-to-date on the next run -->
+    <MakeDir Directories="$(BaseIntermediateOutputPath)" />
+    <Touch Files="$(BaseIntermediateOutputPath)EmbedGitHubAssets.sentinel" AlwaysCreate="true" />
   </Target>
 
   <!-- NuGet package content -->

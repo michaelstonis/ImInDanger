@@ -13,7 +13,7 @@ help: ## Show this help
 	@echo ""
 
 build: ## Build the .NET CLI (debug)
-	@cd src/Rwl && dotnet build -q
+	@cd src/Rwl && dotnet build
 
 sync-resources: ## Sync .github assets into embedded resources (done automatically by dotnet build)
 	@echo "Syncing .github assets into src/Rwl/Resources/Templates/..."
