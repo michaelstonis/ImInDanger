@@ -9,6 +9,12 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    env:
+      # GitHub.Copilot.SDK's _DownloadCopilotCli target is incompatible with the
+      # .NET 10 question build (speculative incremental check). CI smoke tests
+      # only invoke --help / --version, which don't use CopilotClient at runtime,
+      # so skipping the native binary download here is safe.
+      CopilotSkipCliDownload: "true"
     steps:
       - uses: actions/checkout@v4
 

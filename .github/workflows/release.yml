@@ -16,22 +16,32 @@ jobs:
             runner: ubuntu-latest
             archive: tar.gz
             binary: rwl
+            copilot_platform: linux-x64
+            copilot_binary: copilot
           - rid: linux-arm64
             runner: ubuntu-24.04-arm
             archive: tar.gz
             binary: rwl
+            copilot_platform: linux-arm64
+            copilot_binary: copilot
           - rid: osx-arm64
             runner: macos-latest
             archive: tar.gz
             binary: rwl
+            copilot_platform: darwin-arm64
+            copilot_binary: copilot
           - rid: osx-x64
             runner: macos-13
             archive: tar.gz
             binary: rwl
+            copilot_platform: darwin-x64
+            copilot_binary: copilot
           - rid: win-x64
             runner: windows-latest
             archive: zip
             binary: rwl.exe
+            copilot_platform: win32-x64
+            copilot_binary: copilot.exe
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -39,6 +49,27 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+
+      - name: Restore NuGet packages
+        run: dotnet restore src/Rwl/Rwl.csproj
+
+      # GitHub.Copilot.SDK's _DownloadCopilotCli MSBuild target runs BeforeTargets="BeforeBuild"
+      # with no Inputs/Outputs. The .NET 10 question build (speculative incremental check) fails
+      # when that target calls MakeDir on a missing directory. Pre-staging the native binary here
+      # makes all tasks inside _DownloadCopilotCli skip (their Condition checks Exists(binary)),
+      # so the question build sees the target as already up-to-date and the build succeeds.
+      - name: Pre-stage Copilot CLI binary
+        shell: bash
+        run: |
+          NUGET_HOME="${NUGET_PACKAGES:-$HOME/.nuget/packages}"
+          PROPS=$(find "$NUGET_HOME/github.copilot.sdk" -name "GitHub.Copilot.SDK.props" | sort | tail -1)
+          VER=$(python3 -c "import re; c=open('$PROPS').read(); print(re.search(r'<CopilotCliVersion>([^<]+)', c).group(1))")
+          DIR="src/Rwl/obj/Release/net10.0/copilot-cli/$VER/${{ matrix.copilot_platform }}"
+          mkdir -p "$DIR"
+          curl -fsSL "https://registry.npmjs.org/@github/copilot-${{ matrix.copilot_platform }}/-/copilot-${{ matrix.copilot_platform }}-$VER.tgz" \
+            | tar -xzf - --strip-components=1 -C "$DIR"
+          [ "${{ matrix.copilot_binary }}" != "copilot.exe" ] && chmod +x "$DIR/${{ matrix.copilot_binary }}" || true
+          echo "✅ Copilot CLI $VER pre-staged for ${{ matrix.copilot_platform }}"
 
       - name: Publish
         run: >
@@ -48,6 +79,7 @@ jobs:
           --self-contained
           -o dist/${{ matrix.rid }}
           -q
+          --no-restore
 
       - name: Create archive (Unix)
         if: matrix.archive == 'tar.gz'
@@ -107,13 +139,29 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
+      - name: Restore NuGet packages
+        run: dotnet restore src/Rwl/Rwl.csproj
+
+      - name: Pre-stage Copilot CLI binary (linux-x64)
+        run: |
+          NUGET_HOME="${NUGET_PACKAGES:-$HOME/.nuget/packages}"
+          PROPS=$(find "$NUGET_HOME/github.copilot.sdk" -name "GitHub.Copilot.SDK.props" | sort | tail -1)
+          VER=$(python3 -c "import re; c=open('$PROPS').read(); print(re.search(r'<CopilotCliVersion>([^<]+)', c).group(1))")
+          DIR="src/Rwl/obj/Release/net10.0/copilot-cli/$VER/linux-x64"
+          mkdir -p "$DIR"
+          curl -fsSL "https://registry.npmjs.org/@github/copilot-linux-x64/-/copilot-linux-x64-$VER.tgz" \
+            | tar -xzf - --strip-components=1 -C "$DIR"
+          chmod +x "$DIR/copilot"
+          echo "✅ Copilot CLI $VER pre-staged for linux-x64 (NuGet pack)"
+
       - name: Pack
         run: |
           dotnet pack src/Rwl/Rwl.csproj \
             -c Release \
             -p:Version=${{ steps.version.outputs.VERSION }} \
             -o nupkg \
-            -q
+            -q \
+            --no-restore
 
       - name: Push to NuGet.org
         run: |
