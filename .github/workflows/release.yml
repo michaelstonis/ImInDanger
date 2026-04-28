@@ -34,7 +34,7 @@ jobs:
             copilot_platform: darwin-arm64
             copilot_binary: copilot
           - rid: osx-x64
-            runner: macos-13
+            runner: macos-15-intel
             archive: tar.gz
             binary: rwl
             copilot_platform: darwin-x64
