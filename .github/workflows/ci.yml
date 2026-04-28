@@ -10,6 +10,7 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       # GitHub.Copilot.SDK's _DownloadCopilotCli target is incompatible with the
       # .NET 10 question build (speculative incremental check). CI smoke tests
       # only invoke --help / --version, which don't use CopilotClient at runtime,
